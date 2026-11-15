@@ -1,0 +1,49 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{!course}}" class="empty">课程不存在</view>
+
+  <block wx:else>
+    <view class="hero">
+      <view class="hero-title">{{course.title}}</view>
+      <view class="hero-sub">{{course.lecturer || '平台讲师'}} · {{course.lessonCount}} 课时</view>
+      <view class="hero-tags">
+        <text class="tag {{course.accessType === 'FREE' ? 'tag-green' : 'tag-orange'}}">
+          {{course.accessType === 'FREE' ? '免费课程' : '需购买'}}
+        </text>
+        <text class="tag tag-gray" wx:if="{{course.finishedLessonCount > 0}}">
+          已学 {{course.finishedLessonCount}}/{{course.lessonCount}}
+        </text>
+      </view>
+      <view class="hero-summary">{{course.summary}}</view>
+      <view class="btn-primary hero-btn" wx:if="{{!accessible}}" bindtap="buy">
+        购买后解锁全部课时
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{current}}">
+      <view class="card-title">{{current.title}}</view>
+      <view class="muted">时长 {{current.durationText}}</view>
+      <view class="lesson-content" wx:if="{{current.content}}">{{current.content}}</view>
+      <view class="muted" wx:else>该课时暂无可播放内容</view>
+      <view class="btn-ghost" bindtap="markFinished">标记为已学完</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">课时目录</view>
+      <view wx:for="{{lessons}}" wx:key="id"
+            class="lesson-row {{current && current.id === item.id ? 'active' : ''}}"
+            data-id="{{item.id}}" bindtap="play">
+        <view class="lesson-index">{{index + 1}}</view>
+        <view class="lesson-main">
+          <view class="lesson-title">
+            {{item.title}}
+            <text wx:if="{{item.freePreview}}" class="tag tag-green lesson-tag">试看</text>
+            <text wx:if="{{item.locked}}" class="tag tag-gray lesson-tag">未解锁</text>
+            <text wx:if="{{item.finished}}" class="tag tag-gray lesson-tag">已完成</text>
+          </view>
+          <view class="muted">{{item.durationText}}</view>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,97 @@
+.hero {
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  border-radius: 24rpx;
+  padding: 32rpx 28rpx;
+  color: #fff;
+  margin-bottom: 24rpx;
+}
+
+.hero-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.hero-sub {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  opacity: 0.85;
+}
+
+.hero-tags {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+
+.hero-summary {
+  margin-top: 18rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  opacity: 0.92;
+}
+
+.hero-btn {
+  margin-top: 24rpx;
+  background: #ffffff;
+  color: #1d4ed8;
+}
+
+.lesson-content {
+  margin: 16rpx 0 20rpx;
+  font-size: 28rpx;
+  line-height: 1.8;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+.lesson-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+
+.lesson-row:last-child {
+  border-bottom: none;
+}
+
+.lesson-row.active {
+  background: #f8fafc;
+  border-radius: 12rpx;
+  padding-left: 12rpx;
+  padding-right: 12rpx;
+}
+
+.lesson-index {
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 10rpx;
+  background: #eef2ff;
+  color: #1d4ed8;
+  font-size: 24rpx;
+  flex-shrink: 0;
+}
+
+.lesson-main {
+  flex: 1;
+}
+
+.lesson-title {
+  font-size: 28rpx;
+  color: #111827;
+  margin-bottom: 6rpx;
+}
+
+.lesson-tag {
+  margin-left: 8rpx;
+  font-size: 20rpx;
+}
+
+.tag-orange {
+  background: #fff7ed;
+  color: #c2410c;
+}

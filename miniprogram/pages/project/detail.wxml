@@ -1,0 +1,26 @@
+<view class="container" wx:if="{{project}}">
+  <view class="card">
+    <view class="card-title">{{project.name}}</view>
+    <view class="muted intro">{{project.intro || '暂无简介'}}</view>
+    <view class="muted">适用对象：{{project.targetAudience || '不限'}}</view>
+  </view>
+
+  <view class="section-title">科目</view>
+  <view wx:if="{{subjects.length === 0}}" class="empty">暂无科目</view>
+
+  <view wx:for="{{subjects}}" wx:key="id" class="card">
+    <view class="card-title">{{item.name}}</view>
+    <view class="muted intro">{{item.intro || ''}}</view>
+    <view class="actions">
+      <view class="btn-ghost" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="SEQUENCE"
+            bindtap="startPractice">顺序练习</view>
+      <view class="btn-ghost" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="RANDOM"
+            bindtap="startPractice">随机练习</view>
+      <view class="btn-ghost" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="WRONG"
+            bindtap="startPractice">错题重练</view>
+    </view>
+  </view>
+
+  <view class="btn-primary" bindtap="toExam">去考试中心</view>
+  <view class="btn-ghost course-btn" bindtap="toCourses">查看配套课程</view>
+</view>

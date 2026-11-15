@@ -1,0 +1,202 @@
+# ============================================================================
+# 综合考试平台 Prometheus 告警规则
+#
+# 用法：在 prometheus.yml 中引用
+#   rule_files:
+#     - /etc/prometheus/rules/exam-platform-rules.yml
+#
+# 抓取配置示例（应用侧无需鉴权，actuator 只暴露只读端点）：
+#   - job_name: exam-platform
+#     metrics_path: /api/actuator/prometheus
+#     static_configs:
+#       - targets: ['exam-platform:8080']
+#
+# 阈值取的是「首期单体 + 集中开考」场景下的经验值，上线后按实测 p99 调整；
+# 宁可先宽后紧，也不要一开始就频繁误报导致没人看。
+# ============================================================================
+groups:
+  - name: exam-platform-availability
+    rules:
+      - alert: ExamPlatformDown
+        expr: up{job="exam-platform"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "考试平台实例不可达"
+          description: "{{ $labels.instance }} 已连续 1 分钟抓取失败，考试链路可能整体不可用。"
+
+      - alert: ExamPlatformReadinessDown
+        # 进程活着但依赖不可用（如 DB）时 up 仍是 1，必须看 readiness 探针
+        expr: health{job="exam-platform"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "readiness 探针非 UP"
+
+  - name: exam-platform-http
+    rules:
+      - alert: ExamPlatformHighErrorRate
+        # 只看业务 5xx（服务端错误）；4xx 多为客户端参数问题，不纳入告警
+        expr: |
+          sum(rate(http_server_requests_seconds_count{job="exam-platform",status=~"5.."}[5m]))
+            /
+          sum(rate(http_server_requests_seconds_count{job="exam-platform"}[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "接口 5xx 比例超过 1%"
+          description: "近 5 分钟服务端错误占比 {{ $value | humanizePercentage }}。"
+
+      - alert: ExamPlatformSlowAnswerSave
+        # 答题保存是考生高频写接口，慢下来会直接卡住作答体验
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_requests_seconds_bucket{job="exam-platform",uri=~"/v1/attempts/.*/answers/.*"}[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "答题保存 p99 超过 1s"
+          description: "当前 p99 = {{ $value }}s，通常意味着数据库锁等待或连接池不足。"
+
+      - alert: ExamPlatformSlowApiGeneral
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket{job="exam-platform"}[5m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "接口整体 p95 超过 2s"
+
+  - name: exam-platform-rate-limit
+    rules:
+      - alert: ExamPlatformRateLimitStorm
+        # 拒绝量突增：可能是脚本刷接口/撞库，也可能是配额配错把人正常请求挡了
+        expr: sum(rate(app_ratelimit_rejected_total{job="exam-platform"}[5m])) > 20
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "限流拒绝速率超过 20/s"
+          description: "按规则拆分：{{ $labels.rule }} / {{ $labels.dimension }}。"
+
+      - alert: ExamPlatformRateLimitBackendDegraded
+        # Redis 不可用时限流降级到本地令牌桶：配额按单实例继续生效（口径放宽），不是彻底放行。
+        # 但降级本身就是「静默失效」类故障——多实例下总配额被放大，防刷能力变弱，必须告警。
+        expr: increase(app_ratelimit_backend_error_total{job="exam-platform"}[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "限流后端（Redis）异常，已降级为本地令牌桶"
+          description: "10 分钟内出现 {{ $value }} 次后端错误，配额按单实例口径继续生效。检查 Redis 连通性与容量。"
+
+      - alert: ExamPlatformRateLimitDegradedDenySurge
+        # 降级期内本地桶拒绝量突增：多实例各算各的桶，同一用户会在不同实例上被重复计数，
+        # 降级时间一长就可能误伤正常考生——这条专门用来区分「防住了刷」和「误伤了人」
+        expr: sum(rate(app_ratelimit_backend_degraded_total{job="exam-platform",decision="deny"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "限流降级期间本地拒绝偏多"
+          description: "降级期内本地桶拒绝 {{ $value }}/s，确认是否误伤正常考生；必要时放宽 capacity 或缩短 redis-degraded-cooldown-ms。"
+
+  - name: exam-platform-database
+    rules:
+      - alert: ExamPlatformDbPoolExhausted
+        # pending > 0 表示有请求在等连接，持续出现说明池子不够或 SQL 变慢
+        expr: max(hikaricp_connections_pending{job="exam-platform"}) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接池出现排队"
+
+      - alert: ExamPlatformDbConnectionTimeout
+        expr: increase(hikaricp_connections_timeout_total{job="exam-platform"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "出现取连接超时（connection-timeout 3s 已触发）"
+          description: "客户端会收到 COMMON_BUSY 可重试错误，需立即排查慢查询与池容量。"
+
+      - alert: ExamPlatformDbAcquireSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(hikaricp_connections_acquire_seconds_bucket{job="exam-platform"}[5m])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "取连接 p95 超过 500ms"
+
+  - name: exam-platform-reconciliation
+    rules:
+      - alert: ExamPlatformReconAnomaly
+        # 对账检出「钱到了但权益/订单状态没跟上」这类静默不一致。
+        # 用 26h 滑窗覆盖每日一次的调度周期：修复后下一轮对账干净，告警自然停止，
+        # 不需要人工消警——「有人处理了」这件事在指标上会自己体现出来。
+        expr: increase(app_recon_anomaly_total{job="exam-platform"}[26h]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "对账检出账实不符"
+          description: "最近一次对账检出 {{ $value }} 条异常，按类型：{{ $labels.type }}。处理入口：运营后台 › 对账中心，逐条标记已处理或确认误报。"
+
+  - name: exam-platform-jobs
+    rules:
+      - alert: ExamPlatformJobStale
+        # 「任务没跑」是典型的静默故障：进程健康、接口正常、日志无异常，但没有任何东西被处理。
+        # 用 staleness / 预期周期 这个比例做判定，三个任务周期不同（对账 24h / 消息重试 60s / 自动交卷 30s）
+        # 也能共用同一条规则——周期改配置时只需要改任务类里的 register()。
+        expr: app_job_stale_ratio{job="exam-platform"} > 2
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "定时任务 {{ $labels.job }} 已超过 2 个预期周期未成功执行"
+          description: "当前已越过 {{ $value }} 个预期周期。自动交卷停摆=考生超时后不交卷、成绩不出；对账停摆=资金差异无人发现；消息重试停摆=通知永远发不出去。"
+
+      - alert: ExamPlatformJobFailing
+        # 偶发一轮失败通常下一轮自愈，连续 3 次才说明是「持续失败」，需要人介入
+        expr: app_job_consecutive_failures{job="exam-platform"} >= 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "定时任务 {{ $labels.job }} 连续失败 {{ $value }} 次"
+          description: "查该任务「失败」级别的日志定位根因；连续失败期间它负责的业务动作整体停摆。"
+
+  - name: exam-platform-jvm
+    rules:
+      - alert: ExamPlatformGcPauseHigh
+        # 单次 GC 停顿过长会让答题保存出现毛刺，压测阶段就该关注
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(jvm_gc_pause_seconds_bucket{job="exam-platform"}[5m])) by (le)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GC 停顿 p99 超过 500ms"
+
+      - alert: ExamPlatformHeapPressure
+        expr: |
+          sum(jvm_memory_used_bytes{job="exam-platform",area="heap"})
+            / sum(jvm_memory_max_bytes{job="exam-platform",area="heap"}) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "堆内存使用超过 90%"

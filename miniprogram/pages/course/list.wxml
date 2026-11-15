@@ -1,0 +1,21 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{courses.length === 0}}" class="empty">暂无课程</view>
+
+  <block wx:else>
+    <view wx:for="{{courses}}" wx:key="id" class="card course-card"
+          data-id="{{item.id}}" bindtap="toDetail">
+      <view class="course-head">
+        <view class="course-title">{{item.title}}</view>
+        <view class="price">{{item.priceText}}</view>
+      </view>
+      <view class="muted">{{item.summary}}</view>
+      <view class="course-foot">
+        <text class="muted">{{item.lecturer || '平台讲师'}} · {{item.lessonCount}} 课时</text>
+        <text class="tag {{item.accessType === 'FREE' ? 'tag-green' : 'tag-orange'}}">
+          {{item.accessType === 'FREE' ? '免费' : '需购买'}}
+        </text>
+      </view>
+    </view>
+  </block>
+</view>

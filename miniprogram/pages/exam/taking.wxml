@@ -1,0 +1,50 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">正在进入考试…</view>
+
+  <block wx:else>
+    <view class="bar">
+      <view class="bar-left">
+        <view class="bar-title">{{sessionName}}</view>
+        <view class="muted">已保存 {{savedCount}} / {{questions.length}} 题</view>
+        <view wx:if="{{pendingCount > 0}}" class="pending">有 {{pendingCount}} 题待同步（网络恢复后自动补交）</view>
+      </view>
+      <view class="countdown">{{remainText}}</view>
+    </view>
+
+    <scroll-view scroll-x class="nav">
+      <view wx:for="{{questions}}" wx:key="questionId"
+            class="nav-item {{index === itemIndex ? 'active' : ''}} {{answeredMap[item.questionId] ? 'done' : ''}}"
+            data-index="{{index}}" bindtap="switchTo">{{index + 1}}</view>
+    </scroll-view>
+
+    <view class="card" wx:if="{{current}}">
+      <view class="q-head">
+        <view class="tag">{{current.type === 'SINGLE' ? '单选题' : current.type === 'MULTIPLE' ? '多选题' : current.type === 'ESSAY' ? '主观题' : '判断题'}}</view>
+        <view class="muted">第 {{index + 1}} 题 · {{current.score}} 分</view>
+      </view>
+      <view class="stem">{{current.stem}}</view>
+
+      <block wx:if="{{current.type === 'ESSAY'}}">
+        <textarea class="essay" value="{{essayText}}" placeholder="请作答，输入会自动保存"
+                  maxlength="2000" auto-height bindinput="onEssayInput" />
+        <view class="muted essay-hint">主观题需人工阅卷，交卷后由阅卷老师评分</view>
+      </block>
+      <block wx:else>
+        <view wx:for="{{current.options}}" wx:key="key"
+              class="option {{selectedMap[item.key] ? 'active' : ''}}"
+              data-key="{{item.key}}" bindtap="choose">
+          <view class="option-key">{{item.key}}</view>
+          <view class="option-text">{{item.text}}</view>
+        </view>
+      </block>
+    </view>
+
+    <view class="footer">
+      <view class="btn-ghost" bindtap="prev">上一题</view>
+      <view class="btn-ghost" bindtap="next">下一题</view>
+      <view class="btn-primary" bindtap="confirmSubmit">{{submitting ? '交卷中…' : '交卷'}}</view>
+    </view>
+
+    <view class="notice" wx:if="{{noticeContent}}">考试须知：{{noticeContent}}</view>
+  </block>
+</view>

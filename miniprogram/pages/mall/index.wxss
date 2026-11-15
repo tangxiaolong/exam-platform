@@ -1,0 +1,36 @@
+.desc {
+  margin-top: 8rpx;
+  line-height: 1.6;
+}
+
+.foot {
+  margin-top: 24rpx;
+}
+
+.price {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.origin {
+  font-size: 24rpx;
+  color: #b0b7c3;
+  text-decoration: line-through;
+  margin-left: 12rpx;
+}
+
+.buy {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: #fff;
+  font-size: 26rpx;
+  padding: 14rpx 34rpx;
+  border-radius: 999rpx;
+}
+
+.notice {
+  font-size: 22rpx;
+  color: #9aa4b2;
+  line-height: 1.7;
+  margin-top: 10rpx;
+}

@@ -1,0 +1,72 @@
+.hero {
+  background: linear-gradient(135deg, #1d4ed8, #4f46e5 60%, #6366f1);
+  border-radius: 24rpx;
+  padding: 40rpx 32rpx;
+  color: #fff;
+  margin-bottom: 32rpx;
+}
+
+.hello {
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.slogan {
+  font-size: 26rpx;
+  opacity: 0.85;
+  margin-top: 10rpx;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 30rpx;
+}
+
+.hero-btn {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 28rpx;
+}
+
+.hero-btn.ghost {
+  background: #fff;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 18rpx;
+}
+
+.project-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-name {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.project-intro {
+  margin: 14rpx 0 20rpx;
+  line-height: 1.6;
+}
+
+.project-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.enter {
+  color: #2563eb;
+  font-size: 26rpx;
+}

@@ -1,0 +1,37 @@
+.course-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.course-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.course-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.price {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.course-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6rpx;
+}
+
+.tag-orange {
+  background: #fff7ed;
+  color: #c2410c;
+}

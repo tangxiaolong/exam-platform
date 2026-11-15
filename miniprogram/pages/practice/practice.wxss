@@ -1,0 +1,38 @@
+.q-type {
+  font-size: 24rpx;
+  color: #2563eb;
+  margin-bottom: 12rpx;
+}
+
+.stem {
+  font-size: 30rpx;
+  line-height: 1.7;
+  margin-bottom: 26rpx;
+}
+
+.option-text {
+  flex: 1;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.ok {
+  border-left: 8rpx solid #10b981;
+}
+
+.bad {
+  border-left: 8rpx solid #ef4444;
+}
+
+.fb-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 10rpx;
+}
+
+.analysis {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  color: #475569;
+  line-height: 1.7;
+}

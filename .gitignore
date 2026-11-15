@@ -1,0 +1,34 @@
+# Java / Maven
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Node
+node_modules/
+admin-web/dist/
+admin-web/dist-ssr/
+*.local
+
+# 小程序开发者工具
+miniprogram/node_modules/
+project.private.config.json
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 日志与本地配置
+*.log
+logs/
+application-local.yml
+
+# 报表导出产物（app.export.dir 默认指向此目录）
+data/
+backend/data/

@@ -1,0 +1,31 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{sessions.length === 0}}" class="empty">暂无可参加的场次</view>
+
+  <view wx:for="{{sessions}}" wx:key="id" class="card">
+    <view class="row">
+      <view class="card-title">{{item.name}}</view>
+      <view class="tag">时长 {{item.durationMinutes}} 分钟</view>
+    </view>
+    <view class="muted line">考试时间：{{item.startText}} ~ {{item.endText}}</view>
+    <view class="muted line">报名截止：{{item.registerEndAt ? item.registerEndAt : '不限'}}</view>
+
+    <view wx:if="{{item.registration}}" class="tag-green tag">已报名 · {{item.registration.ticketNo}}</view>
+    <view wx:else class="tag-gray tag">未报名</view>
+
+    <view class="actions">
+      <view wx:if="{{!item.registration}}" class="btn-ghost" data-id="{{item.id}}" bindtap="register">立即报名</view>
+      <view wx:if="{{item.registration && (!item.attempt || item.attempt.status === 'IN_PROGRESS')}}"
+            class="btn-primary flex1" data-id="{{item.id}}"
+            data-status="{{item.attempt ? item.attempt.status : ''}}"
+            data-attempt-id="{{item.attempt ? item.attempt.attemptId : ''}}"
+            bindtap="enterExam">
+        {{item.attempt ? '继续考试' : '进入考试'}}
+      </view>
+      <view wx:if="{{item.attempt && item.attempt.status !== 'IN_PROGRESS'}}"
+            class="btn-ghost flex1" data-attempt="{{item.attempt.attemptId}}" bindtap="viewResult">
+        查看成绩
+      </view>
+    </view>
+  </view>
+</view>

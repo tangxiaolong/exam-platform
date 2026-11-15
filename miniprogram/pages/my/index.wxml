@@ -1,0 +1,50 @@
+<view class="container">
+  <view class="profile">
+    <view class="avatar">{{avatarText}}</view>
+    <view>
+      <view class="name">{{user.nickname || user.username || '考生'}}</view>
+      <view class="sub">账号 {{user.username || '-'}} · 租户 {{user.tenantId || '-'}}</view>
+    </view>
+  </view>
+
+  <view class="quick">
+    <view class="quick-item" bindtap="toExam">
+      <view class="quick-value">{{attempts.length}}</view>
+      <view class="muted">考试记录</view>
+    </view>
+    <view class="quick-item" bindtap="toWrong">
+      <view class="quick-value">{{wrongCount}}</view>
+      <view class="muted">错题</view>
+    </view>
+    <view class="quick-item">
+      <view class="quick-value">{{entitlements.length}}</view>
+      <view class="muted">权益</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">我的权益</view>
+    <view wx:if="{{entitlements.length === 0}}" class="muted">暂无权益，可在商城购买题库包或会员</view>
+    <view wx:for="{{entitlements}}" wx:key="id" class="ent">
+      <view class="row">
+        <text>{{item.entitlementType}}</text>
+        <text class="tag tag-green">剩余 {{item.totalAmount - item.usedAmount}}</text>
+      </view>
+      <view class="muted">来源订单 #{{item.sourceOrderId}} · 状态 {{item.status}}</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">考试记录</view>
+    <view wx:if="{{attempts.length === 0}}" class="muted">还没有考试记录</view>
+    <view wx:for="{{attempts}}" wx:key="attemptId" class="attempt" data-id="{{item.attemptId}}" bindtap="toResult">
+      <view class="row">
+        <text class="attempt-name">{{item.sessionName}}</text>
+        <text class="tag {{item.status === 'IN_PROGRESS' ? 'tag-gray' : 'tag-green'}}">{{statusText[item.status] || item.status}}</text>
+      </view>
+      <view class="muted">交卷时间：{{item.submittedText}}<text wx:if="{{item.totalScore !== null && item.totalScore !== undefined}}"> · 得分 {{item.totalScore}}</text></view>
+    </view>
+  </view>
+
+  <view class="btn-ghost" bindtap="logout">退出登录</view>
+</view>

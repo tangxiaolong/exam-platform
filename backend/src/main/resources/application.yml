@@ -1,0 +1,210 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: exam-platform-server
+  profiles:
+    active: h2
+  jackson:
+    default-property-inclusion: non_null
+  # 表结构变更走版本化迁移脚本（db/migration），不再在启动时执行一份幂等 DDL。
+  # baseline-on-migrate 让「历史上用 schema.sql 建过表」的库首次接入时自动打基线，不会重复建表失败。
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+  servlet:
+    multipart:
+      # 必须与 app.upload.max-size-bytes 对齐：Servlet 层默认仅 1MB，
+      # 不放开的话 5MB 的文件会在进业务校验前就被拒绝，且错误码不在统一体系内
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 单条 SQL 执行上限（秒）。超时后驱动抛 QueryTimeoutException，
+    # 由 GlobalExceptionHandler 转成可重试的业务码，避免慢查询把线程池拖死
+    default-statement-timeout: 10
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        # 只暴露只读端点：健康检查、指标、Prometheus 抓取与信息。
+        # 生产不要把 env/heapdump 之类开出去
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  health:
+    redis:
+      # 仅当限流后端切到 redis 时才需要探测；默认关闭，
+      # 否则单机环境（未部署 Redis）会让 /actuator/health 变成 DOWN，
+      # 把「没装 Redis」误报成「服务不健康」
+      enabled: ${APP_REDIS_HEALTH_ENABLED:false}
+  info:
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      # 直方图让 Prometheus 能算 p95/p99，否则只有 sum/count，告警只能靠平均值
+      percentiles-histogram:
+        http.server.requests: true
+        hikaricp.connections.acquire: true
+
+app:
+  db-type: h2
+  # 限流：令牌桶按「规则 × 维度」独立计数，用户维度与 IP 维度任一耗尽即拒绝
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    # memory=进程内（单机，零依赖）；redis=分布式（多实例，配额全局精确）
+    backend: ${APP_RATE_LIMIT_BACKEND:memory}
+    key-prefix: "exam:ratelimit:"
+    # 可信反向代理网段：只有直连对端命中这里才采信 X-Forwarded-For。
+    # 留空=不采信任何转发头。直接信任转发头等于把 IP 维度限流的开关交给客户端。
+    # 部署在 Nginx / SLB 之后时，务必填成实际代理网段，例如：10.0.0.0/8
+    trusted-proxies: "${APP_TRUSTED_PROXIES:}"
+    default-rule:
+      # 普通接口：每用户 300 次/分钟，每 IP 600 次/分钟
+      per-user:
+        capacity: 300
+        refill-tokens: 300
+        refill-period-ms: 60000
+      per-ip:
+        capacity: 600
+        refill-tokens: 600
+        refill-period-ms: 60000
+    answer-save:
+      # 答题保存是高频写接口，配额显著更严（验收要求单独的更严配额）
+      paths:
+        - /v1/attempts/*/answers/*
+        - /v1/practice/sessions/*/answers
+      per-user:
+        capacity: 20
+        refill-tokens: 20
+        refill-period-ms: 60000
+      per-ip:
+        capacity: 120
+        refill-tokens: 120
+        refill-period-ms: 60000
+    auth-login:
+      paths:
+        - /v1/auth/login
+        - /v1/auth/wechat-login
+      per-user:
+        capacity: 60
+        refill-tokens: 60
+        refill-period-ms: 60000
+      per-ip:
+        capacity: 300
+        refill-tokens: 300
+        refill-period-ms: 60000
+    export-rule:
+      # 导出 / 下载类：这些接口的「一次请求」等于「一整份数据」（订单全量、异常清单全量）。
+      # 走 default 的 300 次/分钟，等于允许一个账号一分钟把整库拉走 300 遍；
+      # 人手动下载一分钟不会超过 10 次，自动化爬取一定会——配额就是用来区分这两者的。
+      paths:
+        - /v1/admin/exports/*/download
+        - /v1/admin/reconciliation/anomalies/export
+      per-user:
+        capacity: 10
+        refill-tokens: 10
+        refill-period-ms: 60000
+      per-ip:
+        capacity: 30
+        refill-tokens: 30
+        refill-period-ms: 60000
+  upload:
+    # 上传产物落盘目录；生产建议指向对象存储挂载点
+    dir: ${APP_UPLOAD_DIR:./data/uploads}
+    max-size-bytes: 5242880
+    allowed-extensions: jpg,jpeg,png,pdf,csv,xlsx
+  jwt:
+    # 生产环境必须通过环境变量 APP_JWT_SECRET 覆盖
+    secret: ${APP_JWT_SECRET:exam-platform-dev-secret-key-change-me-please-2026}
+    expire-minutes: 720
+  wechat:
+    # mock=true 时不请求微信服务器，用 code 派生 openid，方便本地联调
+    mock: true
+    app-id: ${WECHAT_APP_ID:wx-demo-appid}
+    app-secret: ${WECHAT_APP_SECRET:wx-demo-secret}
+  exam:
+    auto-submit-enabled: true
+    auto-submit-interval-ms: 30000
+    # 多选题漏选是否给分（false=全对才得分，与首期基线一致）
+    multiple-partial-score: false
+  message:
+    # true 时使用本地模拟通道（不请求微信服务器）；生产必须置为 false 并提供真实通道实现
+    mock: true
+    retry-enabled: true
+    retry-interval-ms: 60000
+  export:
+    # 报表导出文件落盘目录；生产建议指向对象存储挂载点或改为直传 OSS
+    dir: ${APP_EXPORT_DIR:./data/exports}
+  reconciliation:
+    enabled: true
+    # 每天 02:00 对账：与支付高峰错开，也不至于让人早上才发现昨天的问题
+    cron: ${APP_RECON_CLEANUP_CRON:0 0 2 * * *}
+    # 「已支付但无权益」的宽限期：刚付款尚未完成发放的订单不算异常
+    paid-grace-minutes: 10
+  audit:
+    archive:
+      # 默认关闭：删除审计记录是需要人明确决定的事（合规要求、审计本身的要求），
+      # 不能由某个新版本悄悄带上默认行为。开启前先确认保留天数满足所在行业监管要求
+      enabled: ${APP_AUDIT_ARCHIVE_ENABLED:false}
+      # 保留天数；0 表示永久保留（等同于不归档）
+      retention-days: ${APP_AUDIT_RETENTION_DAYS:180}
+      # 分批写文件 + 分批删除，避免一次性锁表；单批在千级以内最稳
+      batch-size: 500
+      dir: ${APP_AUDIT_ARCHIVE_DIR:./data/audit-archive}
+      # 每天 03:30：避开对账（02:00）与业务高峰
+      cron: ${APP_AUDIT_ARCHIVE_CRON:0 30 3 * * *}
+  org-quota:
+    # 每天 04:00 额度对账：核对账户 used_amount 是否等于发放流水净额、
+    # 以及批次流水是否等于权益台账实际到账；不一致按「失败」进定时任务健康告警
+    recon-cron: ${APP_ORG_QUOTA_RECON_CRON:0 0 4 * * *}
+    # 批次级核查的天数窗口：必须大于任务周期（每日执行），否则两次执行之间的发放没人核
+    recon-lookback-days: ${APP_ORG_QUOTA_RECON_LOOKBACK_DAYS:7}
+  demo-data:
+    enabled: true
+
+logging:
+  level:
+    com.exam.platform: info

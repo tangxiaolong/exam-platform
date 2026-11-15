@@ -1,0 +1,20 @@
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 日志落盘前统一脱敏：密码、支付密钥、手机号/身份证/银行卡、JWT 等 -->
+    <conversionRule conversionWord="maskedMsg"
+                    converterClass="com.exam.platform.common.logging.MaskingMessageConverter"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5level [%X{traceId:-}] %logger{40} - %maskedMsg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="com.exam.platform" level="INFO"/>
+</configuration>

@@ -1,0 +1,18 @@
+# MySQL 8.x：表结构由 Flyway 启动时按 db/migration 版本脚本自动迁移
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/exam_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&connectTimeout=3000&socketTimeout=30000}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:9dd369e09a481fd2452ea389f3e5329d}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      # 取连接最多等 3 秒：池满时快速失败，而不是让请求线程无限排队
+      connection-timeout: 3000
+      validation-timeout: 2000
+      # 连接最大存活时间要小于 MySQL 的 wait_timeout，避免拿到已被服务端断开的连接
+      max-lifetime: 1700000
+
+app:
+  db-type: mysql

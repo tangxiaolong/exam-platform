@@ -1,0 +1,24 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{products.length === 0}}" class="empty">暂无在售商品</view>
+
+  <view wx:for="{{products}}" wx:key="id" class="card product">
+    <view class="row">
+      <view>
+        <view class="card-title">{{item.name}}</view>
+        <view class="muted desc">{{item.description || ''}}</view>
+      </view>
+    </view>
+    <view class="row foot">
+      <view>
+        <text class="price">{{item.priceText}}</text>
+        <text class="origin" wx:if="{{item.originalPriceFen}}">{{item.originText}}</text>
+      </view>
+      <view class="buy" data-id="{{item.id}}" bindtap="buy">立即购买</view>
+    </view>
+  </view>
+
+  <view class="notice">
+    支付为演示链路：下单 → 创建支付单 → 模拟支付回调 → 服务端验签并幂等发放权益。
+  </view>
+</view>

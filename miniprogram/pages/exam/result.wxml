@@ -1,0 +1,41 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{!result}}" class="empty">暂无成绩</view>
+
+  <block wx:else>
+    <view class="score-card">
+      <view class="muted light">{{result.status === 'REVIEWING' ? '当前客观题得分' : '本次得分'}}</view>
+      <view class="score">{{result.totalScore}}<text class="full">/ {{result.fullScore}}</text></view>
+      <view class="stat">
+        答对 {{result.correctCount}} / {{result.questionCount}} 题 · 交卷时间 {{submittedText}}
+      </view>
+      <view class="tag light-tag">{{statusText}}</view>
+    </view>
+
+    <view wx:if="{{result.status === 'REVIEWING'}}" class="card">
+      <view class="muted">本科目包含主观题，正在人工阅卷中。阅卷完成后成绩与解析会自动对本人生效。</view>
+    </view>
+
+    <view wx:elif="{{result.items.length === 0}}" class="card">
+      <view class="muted">成绩尚未发布，题目明细暂不可见。</view>
+    </view>
+
+    <view wx:for="{{result.items}}" wx:key="questionId" class="card">
+      <view class="row">
+        <view class="tag">{{item.type === 'SINGLE' ? '单选' : item.type === 'MULTIPLE' ? '多选' : item.type === 'ESSAY' ? '主观题' : '判断'}}</view>
+        <view class="{{item.correct ? 'ok-text' : (item.type === 'ESSAY' ? 'muted' : 'bad-text')}}">
+          {{item.type === 'ESSAY' ? (item.marked ? '已阅卷' : '待阅卷') : (item.correct ? '✓ 正确' : '✗ 错误')}}
+          · {{item.gotScore}}/{{item.score}} 分
+        </view>
+      </view>
+      <view class="stem">{{item.questionId}}. {{item.stem}}</view>
+      <view class="muted" wx:if="{{item.type !== 'ESSAY'}}">标准答案：{{item.standardAnswer}}</view>
+      <view class="muted" wx:else>参考答案：{{item.standardAnswer}}</view>
+      <view class="muted">你的答案：{{item.yourAnswer.length ? item.yourAnswer : '未作答'}}</view>
+      <view class="analysis" wx:if="{{item.remark}}">阅卷意见：{{item.remark}}</view>
+      <view class="analysis" wx:elif="{{item.analysis}}">解析：{{item.analysis}}</view>
+    </view>
+
+    <view class="btn-primary" bindtap="backToList">返回考试中心</view>
+  </block>
+</view>
