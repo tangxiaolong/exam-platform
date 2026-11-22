@@ -102,9 +102,22 @@ public class TradeService {
     // ---------------------------------------------------------------- 商品
 
     public PageResult<MallProduct> pageProducts(String keyword, boolean onlyOnSale, PageQuery pageQuery) {
+        return pageProducts(keyword, onlyOnSale ? MallProduct.STATUS_ON_SALE : null, null, pageQuery);
+    }
+
+    /**
+     * 商品列表。
+     *
+     * <p>{@code status} / {@code type} 为可选的精确筛选；关键词同时匹配编码与名称——
+     * 运营通常拿着编码来核对，只按名称 like 会让「编码明明存在却查不到」。</p>
+     */
+    public PageResult<MallProduct> pageProducts(String keyword, String status, String type, PageQuery pageQuery) {
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        String kw = hasKeyword ? keyword.trim() : null;
         Page<MallProduct> page = productMapper.selectPage(pageQuery.toPage(), Wrappers.<MallProduct>lambdaQuery()
-                .eq(onlyOnSale, MallProduct::getStatus, MallProduct.STATUS_ON_SALE)
-                .like(keyword != null && !keyword.isBlank(), MallProduct::getName, keyword)
+                .eq(status != null && !status.isBlank(), MallProduct::getStatus, status)
+                .eq(type != null && !type.isBlank(), MallProduct::getType, type)
+                .and(hasKeyword, w -> w.like(MallProduct::getCode, kw).or().like(MallProduct::getName, kw))
                 .orderByAsc(MallProduct::getSortNo)
                 .orderByDesc(MallProduct::getId));
         return PageResult.of(page.getRecords(), page.getTotal(), page.getCurrent(), page.getSize());
@@ -338,8 +351,14 @@ public class TradeService {
     }
 
     public PageResult<TradeOrder> pageAllOrders(String status, String keyword, PageQuery pageQuery) {
+        // status 支持逗号分隔的多个取值：页面上「退款」这一个页签同时包含已退款与部分退款，
+        // 而它们是两个枚举——只认单个值会让页签计数与列表条数对不上
+        List<String> statuses = status == null || status.isBlank()
+                ? List.of()
+                : java.util.Arrays.stream(status.split(","))
+                        .map(String::trim).filter(s -> !s.isEmpty()).toList();
         Page<TradeOrder> page = orderMapper.selectPage(pageQuery.toPage(), Wrappers.<TradeOrder>lambdaQuery()
-                .eq(status != null && !status.isBlank(), TradeOrder::getStatus, status)
+                .in(!statuses.isEmpty(), TradeOrder::getStatus, statuses)
                 .and(keyword != null && !keyword.isBlank(),
                         w -> w.like(TradeOrder::getOrderNo, keyword).or().like(TradeOrder::getProductName, keyword))
                 .orderByDesc(TradeOrder::getId));

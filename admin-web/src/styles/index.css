@@ -19,6 +19,19 @@ body,
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
+/*
+ * 弹窗/抽屉宽度上限：各页按桌面宽度写了固定 width（560/640/720px），
+ * 窄窗口或浏览器缩放下会超出视口，把底部按钮挤到屏幕外。
+ * 统一不超过「视口 - 32px」，小屏才真正可用。
+ */
+.el-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+.el-drawer {
+  max-width: calc(100vw - 24px);
+}
+
 .page-title {
   font-size: 18px;
   font-weight: 600;

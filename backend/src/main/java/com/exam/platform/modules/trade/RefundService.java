@@ -253,9 +253,19 @@ public class RefundService {
         return PageResult.of(page.getRecords(), page.getTotal(), page.getCurrent(), page.getSize());
     }
 
-    public PageResult<TradeRefund> pageAll(String status, PageQuery pageQuery) {
+    /**
+     * 管理端退款列表。
+     *
+     * <p>{@code keyword} 同时匹配退款单号与订单号：客服手上通常只有其中一个，
+     * 只支持按状态筛等于让人先翻页找单号。</p>
+     */
+    public PageResult<TradeRefund> pageAll(String status, String keyword, PageQuery pageQuery) {
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        String kw = hasKeyword ? keyword.trim() : null;
         Page<TradeRefund> page = refundMapper.selectPage(pageQuery.toPage(), Wrappers.<TradeRefund>lambdaQuery()
                 .eq(status != null && !status.isBlank(), TradeRefund::getStatus, status)
+                .and(hasKeyword, w -> w.like(TradeRefund::getRefundNo, kw)
+                        .or().like(TradeRefund::getOrderNo, kw))
                 .orderByDesc(TradeRefund::getId));
         return PageResult.of(page.getRecords(), page.getTotal(), page.getCurrent(), page.getSize());
     }

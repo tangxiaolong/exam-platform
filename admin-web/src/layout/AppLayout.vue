@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { tradeApi } from '@/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,7 +16,7 @@ interface MenuGroup {
   key: string
   title: string
   icon: string
-  items: Array<{ path: string; label: string; icon: string }>
+  items: Array<{ path: string; label: string; icon: string; badge?: 'refund' }>
 }
 
 /**
@@ -54,11 +55,13 @@ const ADMIN_GROUPS: MenuGroup[] = [
     key: 'trade',
     title: '交易与财务',
     icon: 'Wallet',
+    // 顺序按「每天点几次」排：查单与退款审核是日常动作，商品/券是配置，对账是周期性检查。
+    // 待审核退款带角标：没人会主动点开一个没有提示的菜单去确认有没有活要干。
     items: [
+      { path: '/orders', label: '订单管理', icon: 'Wallet' },
+      { path: '/refunds', label: '退款审核', icon: 'RefreshLeft', badge: 'refund' },
       { path: '/products', label: '商城商品', icon: 'Goods' },
       { path: '/coupons', label: '优惠券', icon: 'Ticket' },
-      { path: '/orders', label: '订单管理', icon: 'Wallet' },
-      { path: '/refunds', label: '退款审核', icon: 'RefreshLeft' },
       { path: '/reconciliation', label: '对账中心', icon: 'Coin' }
     ]
   },
@@ -164,6 +167,29 @@ const currentLabel = computed(() => {
   return (route.meta.title as string) || '运营后台'
 })
 
+/**
+ * 待审核退款角标。
+ *
+ * <p>「交易与财务」是唯一有「不做就会堆积」待办的域：退款单躺着不审，考生会一直催。
+ * 只取一个 total（pageSize=1），失败就当作 0——菜单不该因为一个统计接口挂掉而变红。</p>
+ */
+const pendingRefund = ref(0)
+
+async function loadBadges() {
+  if (isOrgAdmin.value) return
+  try {
+    const page = await tradeApi.refunds({ status: 'APPLIED', pageNo: 1, pageSize: 1 })
+    pendingRefund.value = page.total || 0
+  } catch {
+    pendingRefund.value = 0
+  }
+}
+
+function badgeCount(item: { badge?: 'refund' }) {
+  if (item.badge === 'refund') return pendingRefund.value
+  return 0
+}
+
 onMounted(async () => {
   if (!auth.user) await auth.loadProfile().catch(() => undefined)
   // 机构管理员手输 /users 之类的地址时，先把人拉回门户，别让他对着 403 找原因
@@ -171,7 +197,16 @@ onMounted(async () => {
     router.replace('/org-portal')
   }
   syncOpenKey()
+  loadBadges()
 })
+
+// 在退款页处理完一笔后回到列表，角标必须跟着变；不重拉就会一直显示旧数字
+watch(
+  () => route.path,
+  (path) => {
+    if (path.startsWith('/refunds') || path.startsWith('/orders')) loadBadges()
+  }
+)
 
 function logout() {
   auth.logout()
@@ -215,7 +250,10 @@ function logout() {
             </template>
             <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
               <el-icon><component :is="item.icon" /></el-icon>
-              <template #title>{{ item.label }}</template>
+              <template #title>
+                <span class="item-label">{{ item.label }}</span>
+                <span v-if="badgeCount(item)" class="item-badge">{{ badgeCount(item) }}</span>
+              </template>
             </el-menu-item>
           </el-sub-menu>
         </el-menu>
@@ -394,6 +432,29 @@ function logout() {
   line-height: 16px;
   margin-left: 6px;
   flex-shrink: 0;
+}
+
+/* 二级项文字撑满，把角标推到最右；不撑满时角标会紧贴文字，长短不一的项对不齐 */
+.item-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 待办角标：与一级组的「数量」灰徽标刻意区分——红色只留给「有活没干」 */
+.item-badge {
+  flex-shrink: 0;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 折叠态：图标居中，隐藏组内数量徽标 */

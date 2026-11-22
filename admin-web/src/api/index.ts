@@ -59,6 +59,8 @@ export interface OptionItem {
 export interface Question {
   id: number
   subjectId: number
+  /** 知识点：为空表示未标注，组卷时按知识点抽题不会抽到 */
+  knowledgePointId?: number | null
   type: string
   stem: string
   options: OptionItem[]
@@ -110,10 +112,62 @@ export interface Order {
   productId: number
   productName: string
   quantity: number
+  /** 明细原价合计（分），未扣券 */
+  totalAmountFen?: number
+  /** 优惠券抵扣（分） */
+  discountAmountFen?: number
+  /** 实付（分） */
   payAmountFen: number
   status: string
+  /** 未支付订单的自动关闭时间 */
+  expireAt?: string
+  couponGrantId?: number | null
+  itemCount?: number
+  remark?: string
   paidAt?: string
   createdAt?: string
+}
+
+/** 订单明细：名称与单价都是下单时的快照，退款按行计算 */
+export interface OrderItem {
+  id: number
+  orderId: number
+  productId: number
+  skuId: number
+  productName: string
+  skuName: string
+  unitPriceFen: number
+  quantity: number
+  amountFen: number
+  refundedAmountFen: number
+  durationDays?: number | null
+}
+
+/**
+ * 交易与财务概览：五个二级页面顶部指标条的唯一数据源。
+ *
+ * <p>金额单位是分。一次性取回四组状态计数，避免每页各发四五个
+ * `pageSize=1` 的分页请求去凑 total。</p>
+ */
+export interface TradeOverview {
+  orderTotal: number
+  orderPendingPayment: number
+  orderPaid: number
+  orderCompleted: number
+  orderClosed: number
+  orderRefunded: number
+  paidAmountFen: number
+  todayPaidCount: number
+  todayPaidAmountFen: number
+  refundPending: number
+  refundSuccess: number
+  refundRejected: number
+  refundedAmountFen: number
+  productOnSale: number
+  productOffSale: number
+  couponActive: number
+  couponStopped: number
+  couponClaimed: number
 }
 
 export interface Product {
@@ -323,11 +377,16 @@ export interface LeaderboardEntry {
 }
 
 export const tradeApi = {
+  /** 概览指标：订单/退款/商品/券四组状态计数，四个页面顶部共用 */
+  overview: () => request<TradeOverview>({ url: '/admin/trade/overview' }),
+  /** 商品分页：status / type 为可选精确筛选，keyword 同时匹配编码与名称 */
   products: (params: any) => request<PageResult<Product>>({ url: '/admin/products', params }),
   createProduct: (data: Product) => request<Product>({ url: '/admin/products', method: 'post', data }),
   updateProduct: (id: number, data: Product) =>
     request<Product>({ url: `/admin/products/${id}`, method: 'put', data }),
   orders: (params: any) => request<PageResult<Order>>({ url: '/admin/orders', params }),
+  // 订单明细：核对「这一单买的是哪几行、各自退了多少」
+  orderItems: (id: number) => request<OrderItem[]>({ url: `/admin/orders/${id}/items` }),
   refunds: (params: any) => request<PageResult<Refund>>({ url: '/admin/refunds', params }),
   approveRefund: (id: number, remark?: string) =>
     request<Refund>({ url: `/admin/refunds/${id}/approve`, method: 'post', params: { remark } }),
@@ -701,6 +760,7 @@ export const productApi = {
 export interface RefundItem {
   id?: number
   refundNo?: string
+  orderId?: number
   orderNo?: string
   userId?: number
   payNo?: string
@@ -708,8 +768,13 @@ export interface RefundItem {
   reason?: string
   status?: string
   auditRemark?: string
+  auditedBy?: number
   appliedAt?: string
   auditedAt?: string
+  refundedAt?: string
+  /** 部分退款对应的订单明细；为空表示整单退款 */
+  orderItemId?: number | null
+  quantity?: number
 }
 
 /**
