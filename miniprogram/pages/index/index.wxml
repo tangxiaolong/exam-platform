@@ -1,27 +1,108 @@
-<view class="container">
+<view class="page">
   <view class="hero">
-    <view class="hello">Hi，{{nickname}}</view>
-    <view class="slogan">选项目 · 刷题库 · 考出好成绩</view>
+    <view class="hero-top">
+      <view class="hero-info">
+        <view class="hello">Hi，{{nickname}}</view>
+        <view class="slogan">选项目 · 刷题库 · 考出好成绩</view>
+        <view class="hero-badge">备考中</view>
+      </view>
+      <view class="hero-illustration">
+        <view class="hero-emoji"></view>
+      </view>
+    </view>
     <view class="hero-actions">
-      <view class="hero-btn" bindtap="toExam">考试中心</view>
+      <view class="hero-btn primary" bindtap="toExam">进入考试中心</view>
       <view class="hero-btn ghost" bindtap="toMall">会员商城</view>
     </view>
   </view>
 
-  <view class="section-title">考试项目</view>
+  <view class="search-bar">
+    <view class="search-icon"></view>
+    <input class="search-input" value="{{keyword}}" bindinput="onSearchInput"
+           placeholder="搜索项目名称、代码或简介" placeholder-class="search-placeholder" />
+  </view>
 
-  <view wx:if="{{loading}}" class="empty">加载中…</view>
-  <view wx:elif="{{projects.length === 0}}" class="empty">暂无已发布的项目</view>
-
-  <view wx:for="{{projects}}" wx:key="id" class="card project" data-id="{{item.id}}" bindtap="toProject">
-    <view class="project-top">
-      <view class="project-name">{{item.name}}</view>
-      <view class="tag">{{item.code}}</view>
+  <view class="quick-grid">
+    <view class="quick-item" bindtap="toExam">
+      <view class="quick-icon quick-blue icon-book"></view>
+      <view class="quick-text">刷题练习</view>
     </view>
-    <view class="muted project-intro">{{item.intro || '暂无简介'}}</view>
-    <view class="project-foot">
-      <text class="muted">{{item.targetAudience || '适用对象不限'}}</text>
-      <text class="enter">进入 ›</text>
+    <view class="quick-item" bindtap="toWrong">
+      <view class="quick-icon quick-red icon-bookx"></view>
+      <view class="quick-text">错题本</view>
+    </view>
+    <view class="quick-item" bindtap="toFavorite">
+      <view class="quick-icon quick-amber icon-star"></view>
+      <view class="quick-text">我的收藏</view>
+    </view>
+    <view class="quick-item" bindtap="toPracticeHistory">
+      <view class="quick-icon quick-green icon-clock"></view>
+      <view class="quick-text">练习记录</view>
+    </view>
+  </view>
+
+  <view wx:if="{{notices.length > 0 || activities.length > 0}}" class="section">
+    <view class="section-head">
+      <view class="section-title"><view class="title-bar"></view>公告与活动</view>
+      <view class="section-more" bindtap="toNoticePage">全部 ›</view>
+    </view>
+    <view class="card notice-card">
+      <view wx:for="{{notices}}" wx:key="id" class="notice-row" bindtap="toNoticePage">
+        <view class="notice-dot"></view>
+        <view class="notice-text">{{item.title}}</view>
+        <view class="notice-arrow">›</view>
+      </view>
+      <view wx:for="{{activities}}" wx:key="id" class="notice-row" bindtap="toNoticePage">
+        <view class="notice-badge">活动</view>
+        <view class="notice-text notice-text-activity">{{item.title}}</view>
+        <view class="notice-arrow">›</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{projects.length > 0}}" class="section">
+    <view class="section-head">
+      <view class="section-title"><view class="title-bar"></view>最新推荐</view>
+    </view>
+    <scroll-view scroll-x="true" show-scrollbar="{{false}}" class="rec-scroll">
+      <view wx:for="{{projects}}" wx:key="id" wx:if="{{index < 3}}" class="rec-card"
+            data-id="{{item.id}}" bindtap="toProject">
+        <image wx:if="{{item.coverUrl}}" class="rec-cover-img" src="{{item.coverUrl}}" mode="aspectFill" />
+        <view wx:else class="rec-cover"><view class="rec-cover-emoji"></view></view>
+        <view class="rec-body">
+          <view class="rec-tag">{{item.code}}</view>
+          <view class="rec-name">{{item.name}}</view>
+          <view class="rec-intro">{{item.intro || '点击查看详情'}}</view>
+          <view class="rec-link">查看详情 ›</view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="section">
+    <view class="section-head">
+      <view class="section-title"><view class="title-bar"></view>考试项目</view>
+      <view wx:if="{{filtered.length > 0}}" class="section-count">共 {{filtered.length}} 个</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="state-box">加载中…</view>
+    <view wx:elif="{{filtered.length === 0}}" class="state-box">没有找到匹配的项目，换个关键词试试</view>
+
+    <view wx:for="{{filtered}}" wx:key="id" class="card project-card"
+          data-id="{{item.id}}" bindtap="toProject">
+      <image wx:if="{{item.coverUrl}}" class="project-cover" src="{{item.coverUrl}}" mode="aspectFill" />
+      <view wx:else class="project-avatar">{{item.name[0]}}</view>
+      <view class="project-main">
+        <view class="project-top">
+          <view class="project-name">{{item.name}}</view>
+          <view class="project-code">{{item.code}}</view>
+        </view>
+        <view class="project-intro">{{item.intro || '暂无简介'}}</view>
+        <view class="project-foot">
+          <text class="project-audience">{{item.targetAudience || '适用对象不限'}}</text>
+          <text class="project-enter">进入 ›</text>
+        </view>
+      </view>
     </view>
   </view>
 </view>

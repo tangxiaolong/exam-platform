@@ -1,0 +1,36 @@
+<view class="page">
+  <view class="tabs">
+    <view class="tab {{tab === 'claimable' ? 'active' : ''}}" data-tab="claimable" bindtap="switchTab">领券中心</view>
+    <view class="tab {{tab === 'mine' ? 'active' : ''}}" data-tab="mine" bindtap="switchTab">我的券</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+
+  <block wx:elif="{{tab === 'claimable'}}">
+    <view wx:if="{{claimable.length === 0}}" class="state-box">暂无可领取的优惠券，过些天再来看看</view>
+    <view wx:for="{{claimable}}" wx:key="id" class="ticket">
+      <view class="ticket-left">
+        <view class="ticket-name">{{item.name}}</view>
+        <view class="ticket-text">{{item.text}}</view>
+        <view class="ticket-period">{{item.period}}</view>
+      </view>
+      <view class="ticket-right">
+        <button class="claim-btn" data-code="{{item.code}}" bindtap="claim" loading="{{claiming}}">领取</button>
+      </view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view wx:if="{{mine.length === 0}}" class="state-box">还没有券，先去领一张吧</view>
+    <view wx:for="{{mine}}" wx:key="grantId" class="ticket {{item.status !== 'UNUSED' ? 'dim' : ''}}">
+      <view class="ticket-left">
+        <view class="ticket-name">{{item.couponName}}</view>
+        <view class="ticket-text">{{item.text}}</view>
+        <view class="ticket-period">领取于 {{item.grantedText}}</view>
+      </view>
+      <view class="ticket-right">
+        <view class="ticket-status {{item.status === 'UNUSED' ? 'can-use' : ''}}">{{item.statusText}}</view>
+      </view>
+    </view>
+  </block>
+</view>

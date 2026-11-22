@@ -69,7 +69,7 @@ public interface ReconCheckMapper {
 
     /** 支付金额与订单应付金额不一致。 */
     @Select("""
-            SELECT p.id AS paymentId, p.pay_no AS payNo,
+            SELECT p.id AS paymentId, p.pay_no AS payNo, o.order_no AS orderNo,
                    p.amount_fen AS paymentAmountFen, o.pay_amount_fen AS orderPayAmountFen
             FROM trade_payment p
             JOIN trade_order o ON o.id = p.order_id AND o.deleted = 0
@@ -123,6 +123,8 @@ public interface ReconCheckMapper {
     class AmountMismatchRow {
         private Long paymentId;
         private String payNo;
+        /** 关联订单号：异常对象以订单定位，运营拿到单号就能在订单管理里查到 */
+        private String orderNo;
         private Long paymentAmountFen;
         private Long orderPayAmountFen;
     }

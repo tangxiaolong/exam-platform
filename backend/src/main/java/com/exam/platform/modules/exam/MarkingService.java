@@ -122,6 +122,9 @@ public class MarkingService {
         ExamAttempt update = new ExamAttempt();
         update.setId(attemptId);
         update.setStatus(ExamAttempt.STATUS_GRADED);
+        // 主观题分数在逐题打分时已并入 result.totalScore，这里把答卷上的总分一起刷新，
+        // 否则阅卷队列/考试监控的「当前得分」会停在客观题分
+        update.setTotalScore(result.getTotalScore());
         attemptMapper.updateById(update);
         ExamAttempt attempt = attemptService.getAttempt(attemptId);
         return attemptService.result(attemptId, attempt.getUserId());
@@ -156,8 +159,13 @@ public class MarkingService {
             markingMapper.updateById(marking);
         }
 
+        // 客观题只有「全对/不对」两种结果：更正成满分就要把 correct 一起翻过来，
+        // 否则成绩单会出现「打了满分却显示 ✗」的自相矛盾
+        boolean corrected = QbQuestion.TYPE_ESSAY.equals(item.type())
+                ? item.correct()
+                : fullScore > 0 && safeScore >= fullScore;
         items.set(index, new ResultItem(item.questionId(), item.type(), item.stem(), item.options(),
-                item.standardAnswer(), item.yourAnswer(), item.correct(), item.score(), safeScore,
+                item.standardAnswer(), item.yourAnswer(), corrected, item.score(), safeScore,
                 item.analysis(), reason, true));
         int revision = (result.getRevision() == null ? 1 : result.getRevision()) + 1;
         gradingService.updateDetail(result, items, revision);

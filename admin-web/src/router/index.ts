@@ -20,6 +20,53 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '工作台' }
       },
       {
+        path: 'roles',
+        name: 'roles',
+        component: () => import('@/views/RoleView.vue')
+      },
+      {
+        path: 'knowledge-points',
+        name: 'knowledge-points',
+        component: () => import('@/views/KnowledgeView.vue'),
+        meta: { title: '知识点' }
+      },
+      {
+        path: 'refunds',
+        name: 'refunds',
+        component: () => import('@/views/RefundView.vue'),
+        meta: { title: '退款审核' }
+      },
+      {
+        path: 'products',
+        name: 'products',
+        component: () => import('@/views/ProductView.vue'),
+        meta: { title: '商城商品' }
+      },
+      {
+        path: 'notices',
+        name: 'notices',
+        component: () => import('@/views/NoticeView.vue'),
+        meta: { title: '公告管理' }
+      },
+      {
+        path: 'question-usage',
+        name: 'question-usage',
+        component: () => import('@/views/QuestionUsageView.vue'),
+        meta: { title: '使用分析' }
+      },
+      {
+        path: 'marking',
+        name: 'marking',
+        component: () => import('@/views/MarkingView.vue'),
+        meta: { title: '阅卷工作台' }
+      },
+      {
+        path: 'coupons',
+        name: 'coupons',
+        component: () => import('@/views/CouponView.vue'),
+        meta: { title: '优惠券' }
+      },
+      {
         path: 'projects',
         name: 'projects',
         component: () => import('@/views/ProjectView.vue'),
@@ -102,6 +149,12 @@ const routes: RouteRecordRaw[] = [
         name: 'audit-logs',
         component: () => import('@/views/AuditView.vue'),
         meta: { title: '审计日志' }
+      },
+      {
+        path: 'settings',
+        name: 'settings',
+        component: () => import('@/views/SettingsView.vue'),
+        meta: { title: '系统参数' }
       }
     ]
   },

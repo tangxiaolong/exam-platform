@@ -1,37 +1,110 @@
-.course-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
+.page {
+  padding: 24rpx 24rpx 120rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
+  min-height: 100vh;
 }
 
-.course-head {
+.header {
+  background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 55%, #7c3aed 100%);
+  border-radius: 28rpx;
+  padding: 36rpx 32rpx;
+  color: #fff;
+  box-shadow: 0 12rpx 32rpx rgba(29, 78, 216, 0.25);
+}
+
+.header-title {
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.header-sub {
+  font-size: 24rpx;
+  opacity: 0.85;
+  margin-top: 10rpx;
+}
+
+.state-box {
+  margin-top: 24rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 60rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-top: 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.course-card:active {
+  opacity: 0.85;
+}
+
+.course-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16rpx;
 }
 
 .course-title {
-  font-size: 30rpx;
+  font-size: 31rpx;
   font-weight: 600;
   color: #111827;
   flex: 1;
+  min-width: 0;
 }
 
-.price {
-  font-size: 28rpx;
-  font-weight: 600;
+.course-price {
+  flex-shrink: 0;
+  margin-left: 16rpx;
+  font-size: 30rpx;
+  font-weight: 700;
   color: #dc2626;
+}
+
+.course-summary {
+  font-size: 24rpx;
+  color: #6b7280;
+  line-height: 1.6;
+  margin-top: 12rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .course-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 6rpx;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #f1f5f9;
 }
 
-.tag-orange {
-  background: #fff7ed;
-  color: #c2410c;
+.course-meta {
+  font-size: 22rpx;
+  color: #9ca3af;
+}
+
+.pill {
+  font-size: 21rpx;
+  border-radius: 999rpx;
+  padding: 6rpx 18rpx;
+}
+
+.pill-green {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.pill-blue {
+  color: #1d4ed8;
+  background: #eff6ff;
 }

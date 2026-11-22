@@ -98,7 +98,7 @@ class MySqlMigrationSmokeTest {
             assertThat(tablesOf(connection))
                     .as("核心业务表应在 MySQL 上建出来")
                     .contains("trade_order", "trade_payment", "entitlement_account", "msg_task",
-                            "exam_session", "attempt", "qb_question", "sys_user", "sys_audit_log",
+                            "exam_session", "exam_attempt", "qb_question", "sys_user", "sys_audit_log",
                             "sys_org", "sys_org_member", "sys_org_quota", "sys_org_quota_recharge",
                             "sys_org_quota_consume", "msg_template");
         }

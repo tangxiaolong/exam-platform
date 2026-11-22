@@ -18,6 +18,9 @@ import lombok.EqualsAndHashCode;
 @TableName("qb_question")
 public class QbQuestion extends BaseEntity {
 
+    /** 知识点ID：为空表示未标注，按知识点范围组卷时不会被抽中。 */
+    private Long knowledgePointId;
+
     public static final String TYPE_SINGLE = "SINGLE";
     public static final String TYPE_MULTIPLE = "MULTIPLE";
     public static final String TYPE_JUDGE = "JUDGE";
@@ -33,6 +36,7 @@ public class QbQuestion extends BaseEntity {
     /** EASY / NORMAL / HARD */
     private String difficulty;
     private String tags;
+    private String source;
     /** ENABLED / DISABLED */
     private String status;
     private Integer version;

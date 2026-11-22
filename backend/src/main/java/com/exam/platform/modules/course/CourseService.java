@@ -7,6 +7,7 @@ import com.exam.platform.common.api.PageResult;
 import com.exam.platform.common.exception.BizException;
 import com.exam.platform.common.util.Entities;
 import com.exam.platform.modules.content.ContentService;
+import com.exam.platform.modules.content.entity.ExamSubject;
 import com.exam.platform.modules.course.dto.CourseDetailView;
 import com.exam.platform.modules.course.dto.CourseSaveRequest;
 import com.exam.platform.modules.course.dto.LessonSaveRequest;
@@ -48,10 +49,11 @@ public class CourseService {
 
     // ------------------------------------------------------------------ 管理端
 
-    public PageResult<CourseInfo> page(String keyword, String status, PageQuery pageQuery) {
+    public PageResult<CourseInfo> page(String keyword, String status, Long projectId, PageQuery pageQuery) {
         Page<CourseInfo> page = courseMapper.selectPage(pageQuery.toPage(), Wrappers.<CourseInfo>lambdaQuery()
                 .like(keyword != null && !keyword.isBlank(), CourseInfo::getTitle, keyword)
                 .eq(status != null && !status.isBlank(), CourseInfo::getStatus, status)
+                .eq(projectId != null, CourseInfo::getProjectId, projectId)
                 .orderByAsc(CourseInfo::getSortNo)
                 .orderByDesc(CourseInfo::getId));
         return PageResult.of(page.getRecords(), page.getTotal(), page.getCurrent(), page.getSize());
@@ -75,6 +77,7 @@ public class CourseService {
     @Transactional
     public CourseInfo save(CourseSaveRequest request) {
         validate(request);
+        assertCodeAvailable(request.code(), null);
         CourseInfo course = new CourseInfo();
         apply(course, request);
         course.setLessonCount(0);
@@ -90,14 +93,16 @@ public class CourseService {
     public CourseInfo update(Long id, CourseSaveRequest request) {
         validate(request);
         CourseInfo exist = getCourse(id);
+        assertCodeAvailable(request.code(), id);
+        // 已发布课程只允许下架：课时改动需通过独立接口，避免误改已售内容。
+        // 但「下架」这个动作本身不能吞掉本次请求里的其它字段——原实现只写 status 就返回，
+        // 前端照样提示「保存成功」，运营改的标题/讲师/价格全部丢失，且没有任何迹象。
         if (CourseInfo.STATUS_PUBLISHED.equals(exist.getStatus())
                 && !CourseInfo.STATUS_PUBLISHED.equals(request.status())) {
-            // 允许下架已发布课程，但课时改动需通过独立接口，避免误改已售内容
             CourseInfo offline = new CourseInfo();
             offline.setId(id);
             offline.setStatus(request.status());
             courseMapper.updateById(offline);
-            return getCourse(id);
         }
         CourseInfo update = new CourseInfo();
         apply(update, request);
@@ -303,15 +308,17 @@ public class CourseService {
     }
 
     private void saveLessons(Long courseId, List<LessonSaveRequest> lessons) {
-        int sortNo = 0;
+        int autoSortNo = 0;
         for (LessonSaveRequest item : lessons) {
             CourseLesson lesson = new CourseLesson();
             lesson.setCourseId(courseId);
             apply(lesson, item);
             if (item.sortNo() == null) {
-                lesson.setSortNo(sortNo);
+                // 序号只在「没显式给」时按顺序补；原来的写法无论给没给都会自增，
+                // 显式 sortNo 与自动序号混用时会出现重号，课时顺序变成随机
+                lesson.setSortNo(autoSortNo);
             }
-            sortNo++;
+            autoSortNo++;
             Entities.forInsert(lesson);
             lessonMapper.insert(lesson);
         }
@@ -327,6 +334,19 @@ public class CourseService {
         courseMapper.updateById(update);
     }
 
+    /** 课程编码租户内唯一：先查一次给出可读提示，避免只看到数据库唯一键冲突。 */
+    private void assertCodeAvailable(String code, Long excludeId) {
+        if (code == null || code.isBlank()) {
+            return;
+        }
+        Long count = courseMapper.selectCount(Wrappers.<CourseInfo>lambdaQuery()
+                .eq(CourseInfo::getCode, code.trim())
+                .ne(excludeId != null, CourseInfo::getId, excludeId));
+        if (count != null && count > 0) {
+            throw BizException.badRequest("课程编码「" + code.trim() + "」已存在，请换一个");
+        }
+    }
+
     private void validate(CourseSaveRequest request) {
         if (request.code() == null || request.code().isBlank()) {
             throw BizException.badRequest("课程编码不能为空");
@@ -334,11 +354,30 @@ public class CourseService {
         if (request.title() == null || request.title().isBlank()) {
             throw BizException.badRequest("课程标题不能为空");
         }
+        if (request.accessType() != null
+                && !CourseInfo.ACCESS_FREE.equals(request.accessType())
+                && !CourseInfo.ACCESS_ENTITLED.equals(request.accessType())) {
+            throw BizException.badRequest("观看条件只能是 FREE 或 ENTITLED");
+        }
+        if (request.status() != null
+                && !CourseInfo.STATUS_DRAFT.equals(request.status())
+                && !CourseInfo.STATUS_PUBLISHED.equals(request.status())
+                && !CourseInfo.STATUS_OFFLINE.equals(request.status())) {
+            throw BizException.badRequest("课程状态只能是 DRAFT / PUBLISHED / OFFLINE");
+        }
         if (request.priceFen() != null && request.priceFen() < 0) {
             throw BizException.badRequest("课程价格必须为非负整数（单位：分）");
         }
         if (request.projectId() != null) {
             contentService.getProject(request.projectId());
+        }
+        // 科目必须属于所选项目：挂错项目的课程在「项目 → 科目」任一层筛选里都查不到，
+        // 而列表只显示项目名，看起来一切正常
+        if (request.subjectId() != null) {
+            var subject = contentService.getSubject(request.subjectId());
+            if (request.projectId() != null && !request.projectId().equals(subject.getProjectId())) {
+                throw BizException.badRequest("所选科目不属于该项目，请重新选择");
+            }
         }
     }
 }

@@ -131,8 +131,22 @@ foreach ($m in [regex]::Matches($routerText, "(?m)^\s{8}path: '([\w-]+)',")) {
 }
 
 $layoutText = Read-Text $layoutFile
+# 菜单声明有两种写法：Element Plus 的 index="/x" 与自定义菜单数据的 path: '/x'。
+# 只认前者会在菜单改成自定义结构后静默放行——扫描不到任何菜单项，「检查通过」变成「没检查」。
+$menuPaths = @()
 foreach ($m in [regex]::Matches($layoutText, 'index="/([\w-]+)"')) {
-    $menuPath = $m.Groups[1].Value
+    $menuPaths += $m.Groups[1].Value
+}
+foreach ($m in [regex]::Matches($layoutText, "path:\s*'/([\w-]+)'")) {
+    $menuPaths += $m.Groups[1].Value
+}
+$menuPaths = $menuPaths | Sort-Object -Unique
+
+if ($menuPaths.Count -eq 0) {
+    $problems += "AppLayout.vue 里没有扫描到任何菜单项（菜单声明写法变了？静态检查会因此静默失效，请更新本脚本的正则）"
+}
+
+foreach ($menuPath in $menuPaths) {
     if ($routerPaths -notcontains $menuPath) {
         $problems += "菜单项 /$menuPath 没有对应路由（点了会落到 404 重定向）"
     }

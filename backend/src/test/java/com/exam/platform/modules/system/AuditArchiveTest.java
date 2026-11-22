@@ -31,7 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.audit.archive.enabled=true",
         "app.audit.archive.retention-days=30",
         "app.audit.archive.batch-size=3",
-        "app.audit.archive.dir=target/test-audit-archive"
+        "app.audit.archive.dir=target/test-audit-archive",
+        "app.demo-data.extra.enabled=false"
 })
 @ActiveProfiles("h2")
 @DisplayName("审计日志：保留期与归档")

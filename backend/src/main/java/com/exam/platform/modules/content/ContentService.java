@@ -30,6 +30,9 @@ public class ContentService {
     private final ExamSubjectMapper subjectMapper;
     private final ExamKnowledgePointMapper knowledgePointMapper;
 
+    /** 引用检查与父子链校验需要跨表查询，直接走 SQL。 */
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     public PageResult<ExamProject> pageProjects(String keyword, String status, PageQuery pageQuery,
                                                 boolean onlyPublished) {
         Page<ExamProject> page = projectMapper.selectPage(pageQuery.toPage(),
@@ -52,11 +55,25 @@ public class ContentService {
     }
 
     public List<ExamSubject> listSubjects(Long projectId, boolean onlyEnabled) {
-        return subjectMapper.selectList(Wrappers.<ExamSubject>lambdaQuery()
+        List<ExamSubject> subjects = subjectMapper.selectList(Wrappers.<ExamSubject>lambdaQuery()
                 .eq(ExamSubject::getProjectId, projectId)
                 .eq(onlyEnabled, ExamSubject::getStatus, STATUS_ENABLED)
                 .orderByAsc(ExamSubject::getSortNo)
                 .orderByAsc(ExamSubject::getId));
+        if (!subjects.isEmpty()) {
+            var counts = new java.util.HashMap<Long, Integer>();
+            jdbcTemplate.queryForList(
+                    "SELECT subject_id, COUNT(*) AS cnt FROM qb_question"
+                            + " WHERE tenant_id = ? AND deleted = 0 AND status = 'ENABLED'"
+                            + " GROUP BY subject_id",
+                    com.exam.platform.common.security.UserContext.tenantId())
+                    .forEach(row -> counts.put(
+                            ((Number) row.get("subject_id")).longValue(),
+                            ((Number) row.get("cnt")).intValue()));
+            subjects.forEach(subject ->
+                    subject.setQuestionCount(counts.getOrDefault(subject.getId(), 0)));
+        }
+        return subjects;
     }
 
     public ExamSubject getSubject(Long id) {
@@ -127,6 +144,17 @@ public class ContentService {
     public ExamKnowledgePoint saveKnowledgePoint(ExamKnowledgePoint point) {
         getSubject(point.getSubjectId());
         Entities.forInsert(point);
+        // 同层级重名会让下拉框出现两个无法区分的选项
+        Long duplicated = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM exam_knowledge_point WHERE tenant_id = ? AND subject_id = ? "
+                        + "AND name = ? AND deleted = 0 "
+                        + "AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))",
+                Long.class, com.exam.platform.common.security.UserContext.tenantId(),
+                point.getSubjectId(), point.getName(),
+                point.getParentId(), point.getParentId());
+        if (duplicated != null && duplicated > 0) {
+            throw BizException.badRequest("同层级已存在同名知识点：" + point.getName());
+        }
         knowledgePointMapper.insert(point);
         return point;
     }
@@ -134,12 +162,40 @@ public class ContentService {
     @Transactional
     public ExamKnowledgePoint updateKnowledgePoint(Long id, ExamKnowledgePoint point) {
         Entities.forUpdate(point, id);
+        // 沿父链向上走：新父节点若出现在自己下面，挂上去就成环，前端树形渲染会死循环
+        Long cursor = point.getParentId();
+        int guard = 0;
+        while (cursor != null && guard++ < 200) {
+            if (cursor.equals(id)) {
+                throw BizException.badRequest("不能把知识点挂到它自己或它的子节点下");
+            }
+            List<Long> rows = jdbcTemplate.queryForList(
+                    "SELECT parent_id FROM exam_knowledge_point "
+                            + "WHERE tenant_id = ? AND id = ? AND deleted = 0",
+                    Long.class, com.exam.platform.common.security.UserContext.tenantId(), cursor);
+            cursor = rows.isEmpty() ? null : rows.get(0);
+        }
         knowledgePointMapper.updateById(point);
         return knowledgePointMapper.selectById(id);
     }
 
     @Transactional
     public void deleteKnowledgePoint(Long id) {
+        // 逻辑删除后题目仍指向这个 ID：组卷时永远抽不到，只报「可用 0 道」，看不出根因
+        Long questionRefs = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM qb_question WHERE tenant_id = ? AND knowledge_point_id = ? "
+                        + "AND deleted = 0",
+                Long.class, com.exam.platform.common.security.UserContext.tenantId(), id);
+        if (questionRefs != null && questionRefs > 0) {
+            throw BizException.badRequest("该知识点下还有 " + questionRefs + " 道题，请先调整题目归属");
+        }
+        Long ruleRefs = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM exam_paper_rule WHERE tenant_id = ? AND knowledge_point_id = ? "
+                        + "AND deleted = 0",
+                Long.class, com.exam.platform.common.security.UserContext.tenantId(), id);
+        if (ruleRefs != null && ruleRefs > 0) {
+            throw BizException.badRequest("有 " + ruleRefs + " 条组卷规则引用了该知识点，请先调整规则");
+        }
         knowledgePointMapper.deleteById(id);
     }
 }

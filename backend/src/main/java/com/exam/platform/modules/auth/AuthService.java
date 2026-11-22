@@ -5,6 +5,7 @@ import com.exam.platform.common.exception.BizException;
 import com.exam.platform.common.security.LoginUser;
 import com.exam.platform.common.security.TokenService;
 import com.exam.platform.common.security.UserContext;
+import com.exam.platform.common.wechat.WechatAuthClient;
 import com.exam.platform.modules.auth.dto.LoginRequest;
 import com.exam.platform.modules.auth.dto.LoginResponse;
 import com.exam.platform.modules.auth.dto.WechatLoginRequest;
@@ -45,20 +46,20 @@ public class AuthService {
     private final SysTenantMapper tenantMapper;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
-    private final boolean wechatMock;
+    private final WechatAuthClient wechatAuthClient;
 
     public AuthService(SysUserMapper userMapper,
                        SysUserIdentityMapper identityMapper,
                        SysTenantMapper tenantMapper,
                        PasswordEncoder passwordEncoder,
                        TokenService tokenService,
-                       @Value("${app.wechat.mock:true}") boolean wechatMock) {
+                       WechatAuthClient wechatAuthClient) {
         this.userMapper = userMapper;
         this.identityMapper = identityMapper;
         this.tenantMapper = tenantMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
-        this.wechatMock = wechatMock;
+        this.wechatAuthClient = wechatAuthClient;
     }
 
     @Transactional
@@ -95,6 +96,9 @@ public class AuthService {
 
     @Transactional
     public LoginResponse loginByWechat(WechatLoginRequest request) {
+        // 与密码登录保持一致：先定租户，再查身份、建用户。
+        // 不传 tenantCode 时落平台租户，行为与改动前完全相同——补能力，不改默认
+        applyTenant(request.tenantCode());
         String openId = resolveOpenId(request.code());
         SysUserIdentity identity = identityMapper.selectOne(Wrappers.<SysUserIdentity>lambdaQuery()
                 .eq(SysUserIdentity::getProvider, PROVIDER_WECHAT)
@@ -155,16 +159,8 @@ public class AuthService {
     }
 
     private String resolveOpenId(String code) {
-        if (!wechatMock) {
-            throw new BizException("AUTH_WECHAT_NOT_CONFIGURED",
-                    "未配置微信 appid/secret，请设置 app.wechat.mock=false 并接入 jscode2session");
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(code.getBytes(StandardCharsets.UTF_8));
-            return "mock-openid-" + HexFormat.of().formatHex(hash).substring(0, 20);
-        } catch (Exception e) {
-            throw new IllegalStateException("openid 派生失败", e);
-        }
+        // 真实 jscode2session 还是本地派生，由注入的 client 决定；
+        // 上层不关心，因此也不会出现「以为配了就用上了」的半接线状态
+        return wechatAuthClient.exchangeCode(code);
     }
 }

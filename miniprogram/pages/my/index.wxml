@@ -1,50 +1,139 @@
-<view class="container">
-  <view class="profile">
-    <view class="avatar">{{avatarText}}</view>
-    <view>
-      <view class="name">{{user.nickname || user.username || '考生'}}</view>
-      <view class="sub">账号 {{user.username || '-'}} · 租户 {{user.tenantId || '-'}}</view>
-    </view>
-  </view>
-
-  <view class="quick">
-    <view class="quick-item" bindtap="toExam">
-      <view class="quick-value">{{attempts.length}}</view>
-      <view class="muted">考试记录</view>
-    </view>
-    <view class="quick-item" bindtap="toWrong">
-      <view class="quick-value">{{wrongCount}}</view>
-      <view class="muted">错题</view>
-    </view>
-    <view class="quick-item">
-      <view class="quick-value">{{entitlements.length}}</view>
-      <view class="muted">权益</view>
-    </view>
-  </view>
-
-  <view class="card">
-    <view class="card-title">我的权益</view>
-    <view wx:if="{{entitlements.length === 0}}" class="muted">暂无权益，可在商城购买题库包或会员</view>
-    <view wx:for="{{entitlements}}" wx:key="id" class="ent">
-      <view class="row">
-        <text>{{item.entitlementType}}</text>
-        <text class="tag tag-green">剩余 {{item.totalAmount - item.usedAmount}}</text>
+<view class="page">
+  <view class="header">
+    <view class="header-row">
+      <view class="avatar">{{avatarText}}</view>
+      <view class="header-info">
+        <view class="name">{{user.nickname || user.username || '考生'}}</view>
+        <view class="sub">账号 {{user.username || '-'}}</view>
       </view>
-      <view class="muted">来源订单 #{{item.sourceOrderId}} · 状态 {{item.status}}</view>
-    </view>
-  </view>
-
-  <view class="card">
-    <view class="card-title">考试记录</view>
-    <view wx:if="{{attempts.length === 0}}" class="muted">还没有考试记录</view>
-    <view wx:for="{{attempts}}" wx:key="attemptId" class="attempt" data-id="{{item.attemptId}}" bindtap="toResult">
-      <view class="row">
-        <text class="attempt-name">{{item.sessionName}}</text>
-        <text class="tag {{item.status === 'IN_PROGRESS' ? 'tag-gray' : 'tag-green'}}">{{statusText[item.status] || item.status}}</text>
+      <view class="msg-bell icon-bell" bindtap="toMessages">
+        <view wx:if="{{messageUnread > 0}}" class="msg-dot"></view>
       </view>
-      <view class="muted">交卷时间：{{item.submittedText}}<text wx:if="{{item.totalScore !== null && item.totalScore !== undefined}}"> · 得分 {{item.totalScore}}</text></view>
     </view>
   </view>
 
-  <view class="btn-ghost" bindtap="logout">退出登录</view>
+  <view class="stat-card">
+    <view class="stat-item" bindtap="toExam">
+      <view class="stat-num">{{attempts.length}}</view>
+      <view class="stat-label">考试记录</view>
+    </view>
+    <view class="stat-item" bindtap="toWrong">
+      <view class="stat-num">{{wrongCount}}</view>
+      <view class="stat-label">错题</view>
+    </view>
+    <view class="stat-item" bindtap="toFavorites">
+      <view class="stat-num">{{favoriteCount > 99 ? '99+' : favoriteCount}}</view>
+      <view class="stat-label">收藏</view>
+    </view>
+    <view class="stat-item" bindtap="toMessages">
+      <view class="stat-num {{messageUnread > 0 ? 'warn' : ''}}">{{messageUnread}}</view>
+      <view class="stat-label">消息</view>
+    </view>
+    <view class="stat-item">
+      <view class="stat-num">{{entitlements.length}}</view>
+      <view class="stat-label">权益</view>
+    </view>
+  </view>
+
+  <view wx:if="{{recentPractice}}" class="resume-card" bindtap="toResume">
+    <view class="resume-top">
+      <view class="resume-title">继续上次练习{{recentPractice.subjectName ? ' · ' + recentPractice.subjectName : ''}}</view>
+      <view class="resume-go">继续 ›</view>
+    </view>
+    <view class="resume-meta">
+      已完成 {{recentPractice.answeredCount}}/{{recentPractice.totalCount}} 题<text wx:if="{{recentPractice.startedAt}}"> · {{recentPractice.startedAt}}</text>
+    </view>
+    <view class="resume-progress">
+      <view class="resume-progress-inner" style="width: {{recentPractice.progressPct}}%;"></view>
+    </view>
+  </view>
+
+  <view class="menu-card">
+    <view class="menu-row" bindtap="toPracticeHistory">
+      <view class="menu-icon m-blue icon-bookmenu"></view>
+      <view class="menu-text">学习记录</view>
+      <view class="menu-sub">练习进度一览</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-row" bindtap="toOrder">
+      <view class="menu-icon m-orange icon-receipt"></view>
+      <view class="menu-text">我的订单</view>
+      <view class="menu-sub">订单 / 退款 / 开票</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-row" bindtap="toCoupon">
+      <view class="menu-icon m-amber icon-ticket"></view>
+      <view class="menu-text">优惠券</view>
+      <view class="menu-sub">领券 / 我的券</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-row" bindtap="toNotice">
+      <view class="menu-icon m-purple icon-bell"></view>
+      <view class="menu-text">公告</view>
+      <view class="menu-sub">平台公告与活动</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-row" bindtap="toPassword">
+      <view class="menu-icon m-gray icon-lock"></view>
+      <view class="menu-text">设置登录密码</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <button class="menu-row menu-btn" open-type="contact">
+      <view class="menu-icon m-green icon-headphones"></view>
+      <view class="menu-text">在线客服</view>
+      <view class="menu-arrow">›</view>
+    </button>
+  </view>
+
+  <view class="section">
+    <view class="section-head">
+      <view class="section-title"><view class="title-bar"></view>我的权益</view>
+      <view class="section-more" bindtap="toMall">去开通 ›</view>
+    </view>
+    <view wx:if="{{entitlements.length === 0}}" class="empty-card">
+      <view class="empty-text">暂无权益，购买题库包或会员即可开始备考</view>
+      <view class="empty-btn" bindtap="toMall">去商城看看</view>
+    </view>
+    <view wx:for="{{entitlements}}" wx:key="id" class="card ent-card" bindtap="toMall">
+      <view class="ent-icon {{item.iconClass}}">{{item.iconText}}</view>
+      <view class="ent-main">
+        <view class="ent-top">
+          <view class="ent-type">{{item.typeText}}</view>
+          <view class="ent-status {{item.statusActive ? 'on' : 'off'}}">{{item.statusText}}</view>
+        </view>
+        <view class="ent-meta">来源订单 #{{item.sourceOrderId}}<text wx:if="{{item.expireText}}"> · 有效期至 {{item.expireText}}</text></view>
+      </view>
+      <view class="ent-left-box">
+        <view class="ent-left-num">{{item.leftText}}</view>
+        <view class="ent-left-label">剩余</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-head">
+      <view class="section-title"><view class="title-bar"></view>考试记录</view>
+      <view wx:if="{{attempts.length > 0}}" class="section-more" bindtap="toExam">全部 {{attempts.length}} 条 ›</view>
+    </view>
+    <view wx:if="{{attempts.length === 0}}" class="empty-card">
+      <view class="empty-text">还没有考试记录，报名场次后即可参加考试</view>
+      <view class="empty-btn" bindtap="toExam">去考试中心</view>
+    </view>
+    <view wx:for="{{latestAttempts}}" wx:key="attemptId" class="card attempt-card" data-id="{{item.attemptId}}" bindtap="toResult">
+      <view class="attempt-score {{item.status === 'IN_PROGRESS' ? 'pending' : ''}}">
+        <view class="score-num">{{item.status === 'IN_PROGRESS' ? '--' : (item.totalScore !== null && item.totalScore !== undefined ? item.totalScore : '--')}}</view>
+        <view class="score-label">得分</view>
+      </view>
+      <view class="attempt-main">
+        <view class="attempt-top">
+          <view class="attempt-name">{{item.sessionName}}</view>
+          <view class="tag {{item.status === 'IN_PROGRESS' ? 'tag-gray' : 'tag-green'}}">{{statusText[item.status] || item.status}}</view>
+        </view>
+        <view class="attempt-meta">交卷时间：{{item.submittedText}}</view>
+      </view>
+      <view class="attempt-action" data-id="{{item.attemptId}}" catchtap="toResult">查看 ›</view>
+    </view>
+  </view>
+
+  <view class="logout" bindtap="logout">退出登录</view>
 </view>

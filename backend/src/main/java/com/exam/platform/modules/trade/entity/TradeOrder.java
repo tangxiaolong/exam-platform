@@ -22,6 +22,7 @@ public class TradeOrder extends BaseEntity {
     public static final String STATUS_PAID = "PAID";
     public static final String STATUS_COMPLETED = "COMPLETED";
     public static final String STATUS_CLOSED = "CLOSED";
+    public static final String STATUS_PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED";
     public static final String STATUS_REFUNDED = "REFUNDED";
 
     private String orderNo;
@@ -36,4 +37,8 @@ public class TradeOrder extends BaseEntity {
     private LocalDateTime expireAt;
     private LocalDateTime paidAt;
     private String remark;
+    /** 使用的优惠券持券记录；NULL 表示未用券。 */
+    private Long couponGrantId;
+    /** 明细行数，列表页展示用，避免每次都查明细表。 */
+    private Integer itemCount;
 }

@@ -95,6 +95,18 @@ function removeRule(index: number) {
   form.rules.splice(index, 1)
 }
 
+async function clonePaper(row: any) {
+  const res = await ElMessageBox.prompt('复制试卷：沿用当前组卷规则，生成新草稿', '复制试卷', {
+    inputValue: `${row.name}-副本`,
+    confirmButtonText: '复制',
+    cancelButtonText: '取消'
+  }).catch(() => null)
+  if (!res) return
+  await paperApi.clone(row.id, (res as any).value)
+  ElMessage.success('已复制为新草稿')
+  await load()
+}
+
 async function save() {
   if (!form.name.trim()) return ElMessage.warning('请填写试卷名称')
   if (form.mode === 'RULE') {
@@ -126,6 +138,16 @@ async function save() {
   ElMessage.success('试卷已创建')
   dialogVisible.value = false
   load()
+}
+
+const snapshotVisible = ref(false)
+const snapshotPaperName = ref('')
+const snapshots = ref<any[]>([])
+
+async function openSnapshots(row: Paper) {
+  snapshotPaperName.value = row.name || ''
+  snapshots.value = (await paperApi.snapshots(row.id as number)) || []
+  snapshotVisible.value = true
 }
 
 async function preview(row: Paper) {
@@ -186,9 +208,11 @@ onMounted(async () => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="170" fixed="right">
+      <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
+          <el-button link type="primary" @click="openSnapshots(row)">版本</el-button>
           <el-button link type="primary" @click="preview(row)">试组卷</el-button>
+      <el-button link type="primary" @click="clonePaper(row)">复制</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -270,6 +294,20 @@ onMounted(async () => {
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="save">保存</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="snapshotVisible" :title="`版本历史 · ${snapshotPaperName}`" width="640px">
+      <p class="page-desc" style="margin: 0 0 12px;">每次场次发布生成一个不可变快照；历史答卷始终按当时快照判分。</p>
+      <el-table :data="snapshots" size="small" max-height="360">
+        <el-table-column prop="id" label="快照ID" width="90" />
+        <el-table-column prop="paperVersion" label="试卷版本" width="90" />
+        <el-table-column prop="totalScore" label="总分" width="80" />
+        <el-table-column prop="contentHash" label="内容指纹" min-width="140" />
+        <el-table-column label="生成时间" width="150">
+          <template #default="{ row }">{{ String(row.createdAt || '').replace('T', ' ').slice(0, 19) }}</template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="snapshots.length === 0" description="尚未发布过场次，暂无快照版本" :image-size="80" />
     </el-dialog>
 
     <el-dialog v-model="previewVisible" title="试组卷结果" width="720px">

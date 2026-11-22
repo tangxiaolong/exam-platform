@@ -1,0 +1,138 @@
+.page {
+  padding: 24rpx 24rpx 120rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.tabs {
+  display: flex;
+  background: #ffffff;
+  border-radius: 999rpx;
+  padding: 8rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  font-size: 27rpx;
+  color: #6b7280;
+  padding: 16rpx 0;
+  border-radius: 999rpx;
+}
+
+.tab.active {
+  color: #ffffff;
+  font-weight: 600;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 4rpx 12rpx rgba(37, 99, 235, 0.3);
+}
+
+.state-box {
+  margin-top: 24rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 60rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+/* ---------- 票券造型 ---------- */
+.ticket {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 24rpx;
+  margin-top: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.ticket::before,
+.ticket::after {
+  content: '';
+  position: absolute;
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  background: #f5f7fa;
+  right: 168rpx;
+}
+
+.ticket::before {
+  top: -14rpx;
+}
+
+.ticket::after {
+  bottom: -14rpx;
+}
+
+.ticket.dim {
+  opacity: 0.55;
+}
+
+.ticket-left {
+  flex: 1;
+  min-width: 0;
+  padding: 28rpx;
+  background: linear-gradient(135deg, #ffffff, #f8faff);
+}
+
+.ticket-name {
+  font-size: 29rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ticket-text {
+  font-size: 23rpx;
+  color: #1d4ed8;
+  margin-top: 10rpx;
+}
+
+.ticket-period {
+  font-size: 21rpx;
+  color: #9ca3af;
+  margin-top: 10rpx;
+}
+
+.ticket-right {
+  width: 168rpx;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 2rpx dashed #e5e7eb;
+  padding: 0 20rpx;
+  box-sizing: border-box;
+  align-self: stretch;
+}
+
+.claim-btn {
+  margin: 0;
+  font-size: 25rpx;
+  color: #ffffff;
+  font-weight: 500;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-radius: 999rpx;
+  padding: 0 30rpx;
+  line-height: 62rpx;
+  box-shadow: 0 4rpx 12rpx rgba(245, 158, 11, 0.3);
+}
+
+.claim-btn::after {
+  border: none;
+}
+
+.ticket-status {
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
+.ticket-status.can-use {
+  color: #059669;
+  font-weight: 600;
+}

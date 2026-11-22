@@ -80,8 +80,15 @@ function flush(scope, targetId, send, onConflict) {
         }
         return step()
       })
-      .catch(() => {
-        // 还在断网：停止本轮，保留队列，等下次网络恢复或页面再进入
+      .catch((err) => {
+        // 业务错误（带 code，如已交卷、场次过期）：重放多少次都不会成功。
+        // 必须出队并继续下一条——留在队列里等于每次 onShow 都重试一次，
+        // 而且它排在最前面时会挡住后面本来能同步成功的答案。
+        if (err && err.code) {
+          drop(item)
+          return step()
+        }
+        // 网络错误：停止本轮，保留队列，等网络恢复或页面再进入
         stopped = true
         return pending(scope, targetId).length
       })

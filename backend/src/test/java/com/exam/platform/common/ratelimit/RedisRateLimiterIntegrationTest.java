@@ -167,8 +167,11 @@ class RedisRateLimiterIntegrationTest {
     @DisplayName("桶 key 带 TTL：空闲桶会被 Redis 自动回收，不会无限堆积")
     void bucketKeyShouldCarryTtl() {
         RateLimitProperties.Bucket bucket = bucket(5, 5, 60_000);
-        RedisRateLimiter limiter = limiter("it:ttl:");
-        String key = "it:ttl:user:1";
+        // 断言要看真实 key，前缀必须由测试自己持有：limiter(prefix) 会再追加一段随机串，
+        // 用它的前缀拼不出 key，getExpire 只会拿到 null——这个用例此前一直是红的（被 skip 掩盖）
+        String prefix = "it:ttl:" + UUID.randomUUID() + ":";
+        RedisRateLimiter limiter = limiterWith(prefix);
+        String key = prefix + "user:1";
 
         limiter.acquire("user:1", bucket);
 
@@ -187,9 +190,11 @@ class RedisRateLimiterIntegrationTest {
     void twoInstancesShouldShareQuota() {
         int capacity = 10;
         RateLimitProperties.Bucket bucket = bucket(capacity, capacity, 60_000);
-        // 限流器本身不持有状态，两个实例读同一个 key 等价于两个应用节点
-        RedisRateLimiter nodeA = limiter("it:cluster:");
-        RedisRateLimiter nodeB = limiter("it:cluster:");
+        // 限流器本身不持有状态，两个实例读同一个 key 等价于两个应用节点。
+        // 两者必须用同一个前缀，否则各自落在不同 key 上，测的就不是「共享」而是「互不干扰」
+        String prefix = "it:cluster:" + UUID.randomUUID() + ":";
+        RedisRateLimiter nodeA = limiterWith(prefix);
+        RedisRateLimiter nodeB = limiterWith(prefix);
 
         int allowedByA = 0;
         for (int i = 0; i < 6; i++) {
@@ -214,6 +219,11 @@ class RedisRateLimiterIntegrationTest {
 
     private RedisRateLimiter limiter(String prefix) {
         return new RedisRateLimiter(redis, meterRegistry, prefix + UUID.randomUUID() + ":");
+    }
+
+    /** 前缀由调用方完整持有：需要断言真实 key、或需要两个实例共用前缀时用这个。 */
+    private RedisRateLimiter limiterWith(String prefix) {
+        return new RedisRateLimiter(redis, meterRegistry, prefix);
     }
 
     private RateLimitProperties.Bucket bucket(int capacity, int refillTokens, long refillPeriodMs) {

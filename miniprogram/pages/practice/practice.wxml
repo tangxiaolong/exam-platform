@@ -1,17 +1,21 @@
-<view class="container">
-  <view wx:if="{{loading}}" class="empty">正在准备题目…</view>
-  <view wx:elif="{{!current}}" class="empty">该科目下暂无题目</view>
+<view class="page">
+  <view wx:if="{{loading}}" class="state-box">正在准备题目…</view>
+  <view wx:elif="{{!current}}" class="state-box">该科目下暂无题目</view>
 
   <block wx:else>
-    <view class="card">
-      <view class="row">
-        <view class="tag">{{mode === 'RANDOM' ? '随机练习' : mode === 'WRONG' ? '错题重练' : '顺序练习'}}</view>
-        <view class="muted">{{index + 1}} / {{questions.length}} · 已答 {{answeredCount}} · 答对 {{correctCount}}</view>
-      </view>
+    <view class="stats-bar">
+      <view class="mode-pill">{{mock ? '模拟考试' : (mode === 'RANDOM' ? '随机练习' : mode === 'WRONG' ? '错题重练' : '顺序练习')}}</view>
+      <view class="stats-meta">{{index + 1}} / {{questions.length}} · 已答 {{answeredCount}} · 答对 {{correctCount}}</view>
+      <view wx:if="{{mock && mockRemain}}" class="mock-remain">{{mockRemain}}</view>
     </view>
 
     <view class="card">
-      <view class="q-type">{{current.type === 'SINGLE' ? '单选题' : current.type === 'MULTIPLE' ? '多选题' : '判断题'}}</view>
+      <view class="q-head">
+        <view class="q-type">{{current.type === 'SINGLE' ? '单选题' : current.type === 'MULTIPLE' ? '多选题' : '判断题'}}</view>
+        <view class="fav {{favorited[current.id] ? 'fav-on' : ''}}" catchtap="toggleFavorite">
+          {{favorited[current.id] ? '★ 已收藏' : '☆ 收藏本题'}}
+        </view>
+      </view>
       <view class="stem">{{current.stem}}</view>
 
       <view wx:for="{{current.options}}" wx:key="key"
@@ -22,13 +26,13 @@
       </view>
     </view>
 
-    <view wx:if="{{result}}" class="card {{result.correct ? 'ok' : 'bad'}}">
-      <view class="fb-title">{{result.correct ? '回答正确' : '回答错误'}}</view>
-      <view class="muted">标准答案：{{result.standardAnswer}}</view>
+    <view wx:if="{{result}}" class="card fb-card {{result.correct ? 'fb-ok' : 'fb-bad'}}">
+      <view class="fb-title {{result.correct ? 'ok-text' : 'bad-text'}}">{{result.correct ? '✓ 回答正确' : '✗ 回答错误'}}</view>
+      <view class="fb-line">标准答案：{{result.standardAnswer}}</view>
       <view class="analysis" wx:if="{{result.analysis}}">解析：{{result.analysis}}</view>
     </view>
 
-    <view wx:if="{{!result}}" class="btn-primary" bindtap="submit">提交答案</view>
-    <view wx:else class="btn-primary" bindtap="next">下一题</view>
+    <view wx:if="{{!result}}" class="main-btn" bindtap="submit">提交答案</view>
+    <view wx:else class="main-btn" bindtap="next">下一题 ›</view>
   </block>
 </view>

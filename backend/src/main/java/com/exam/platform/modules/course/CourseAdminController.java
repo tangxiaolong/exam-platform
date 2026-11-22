@@ -32,8 +32,9 @@ public class CourseAdminController {
     @GetMapping
     public Result<PageResult<CourseInfo>> page(@RequestParam(required = false) String keyword,
                                               @RequestParam(required = false) String status,
+                                              @RequestParam(required = false) Long projectId,
                                               PageQuery pageQuery) {
-        return Result.ok(courseService.page(keyword, status, pageQuery));
+        return Result.ok(courseService.page(keyword, status, projectId, pageQuery));
     }
 
     @GetMapping("/{id}")

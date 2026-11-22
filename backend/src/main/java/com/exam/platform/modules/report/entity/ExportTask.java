@@ -29,6 +29,8 @@ public class ExportTask extends BaseEntity {
     public static final String TYPE_RESULT = "RESULT";
     /** 报名报表 */
     public static final String TYPE_REGISTRATION = "REGISTRATION";
+    /** 场次成绩分析报表（概览 + 分数段分布 + 逐题正确率） */
+    public static final String TYPE_SESSION_ANALYTICS = "SESSION_ANALYTICS";
 
     private String taskNo;
     private String type;

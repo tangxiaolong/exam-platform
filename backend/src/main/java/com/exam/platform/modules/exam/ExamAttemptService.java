@@ -55,6 +55,7 @@ public class ExamAttemptService {
     private final ExamSessionMapper sessionMapper;
     private final ExamSessionService sessionService;
     private final GradingService gradingService;
+    private final WrongBookService wrongBookService;
     private final PaperService paperService;
 
     /** 开始考试：重复调用返回同一个有效 attempt。 */
@@ -191,6 +192,9 @@ public class ExamAttemptService {
     /** 管理员强制收卷 / 定时任务自动交卷。 */
     @Transactional
     public ExamResultView doSubmit(ExamAttempt attempt, String reason) {
+        // 只有本次真的完成了「进行中 → 已交卷」的状态迁移，才算一次新的交卷；
+        // 重复交卷会返回既有成绩，此时不能重复往错题本里累加次数
+        boolean justSubmitted = false;
         ExamSession session = sessionService.getSession(attempt.getSessionId());
         if (ExamAttempt.STATUS_IN_PROGRESS.equals(attempt.getStatus())) {
             LocalDateTime now = LocalDateTime.now();
@@ -202,6 +206,7 @@ public class ExamAttemptService {
                     .set(ExamAttempt::getSubmitReason, reason)
                     .set(ExamAttempt::getUpdatedAt, now));
             if (rows > 0) {
+                justSubmitted = true;
                 attempt.setStatus(ExamAttempt.STATUS_SUBMITTED);
                 attempt.setSubmittedAt(now);
                 attempt.setSubmitReason(reason);
@@ -213,6 +218,11 @@ public class ExamAttemptService {
             throw new BizException("EXAM_STATUS_INVALID", "当前考试状态不支持交卷：" + attempt.getStatus());
         }
         ExamResult result = gradingService.gradeIfAbsent(attempt);
+        if (justSubmitted) {
+            // 错题本跟着成绩一起就绪：考生交完卷就能复习，不必等成绩发布再手动挑题
+            wrongBookService.recordWrong(attempt.getUserId(), attempt.getId(),
+                    gradingService.parseItems(result));
+        }
         return buildResultView(attempt, result, session);
     }
 
@@ -391,8 +401,14 @@ public class ExamAttemptService {
 
     /** 阅卷队列：按 attempt 状态分页（如 REVIEWING 待阅卷）。 */
     public PageResult<AttemptView> pageByStatus(String status, PageQuery pageQuery) {
+        return pageByStatus(status, null, pageQuery);
+    }
+
+    /** 阅卷队列按状态 + 可选场次过滤：多场次并行阅卷时可聚焦单个场次。 */
+    public PageResult<AttemptView> pageByStatus(String status, Long sessionId, PageQuery pageQuery) {
         Page<ExamAttempt> page = attemptMapper.selectPage(pageQuery.toPage(), Wrappers.<ExamAttempt>lambdaQuery()
                 .eq(status != null && !status.isBlank(), ExamAttempt::getStatus, status)
+                .eq(sessionId != null, ExamAttempt::getSessionId, sessionId)
                 .orderByDesc(ExamAttempt::getId));
         List<AttemptView> views = new ArrayList<>();
         for (ExamAttempt attempt : page.getRecords()) {

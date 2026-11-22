@@ -1,26 +1,98 @@
-<view class="container" wx:if="{{project}}">
-  <view class="card">
-    <view class="card-title">{{project.name}}</view>
-    <view class="muted intro">{{project.intro || '暂无简介'}}</view>
-    <view class="muted">适用对象：{{project.targetAudience || '不限'}}</view>
-  </view>
-
-  <view class="section-title">科目</view>
-  <view wx:if="{{subjects.length === 0}}" class="empty">暂无科目</view>
-
-  <view wx:for="{{subjects}}" wx:key="id" class="card">
-    <view class="card-title">{{item.name}}</view>
-    <view class="muted intro">{{item.intro || ''}}</view>
-    <view class="actions">
-      <view class="btn-ghost" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="SEQUENCE"
-            bindtap="startPractice">顺序练习</view>
-      <view class="btn-ghost" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="RANDOM"
-            bindtap="startPractice">随机练习</view>
-      <view class="btn-ghost" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="WRONG"
-            bindtap="startPractice">错题重练</view>
+<view class="page" wx:if="{{project}}">
+  <view class="hero">
+    <image wx:if="{{project.coverUrl}}" class="hero-cover" src="{{project.coverUrl}}" mode="aspectFill" />
+    <view class="hero-mask"></view>
+    <view class="hero-body">
+      <view class="hero-name">{{project.name}}</view>
+      <view class="hero-target">适用对象：{{project.targetAudience || '不限'}}</view>
     </view>
   </view>
 
-  <view class="btn-primary" bindtap="toExam">去考试中心</view>
-  <view class="btn-ghost course-btn" bindtap="toCourses">查看配套课程</view>
+  <view class="card intro-card">
+    <view class="intro-text">{{project.intro || '暂无简介'}}</view>
+  </view>
+
+  <view wx:if="{{sessions.length > 0}}" class="section">
+    <view class="section-head"><view class="title-bar"></view>考试安排</view>
+    <view wx:for="{{sessions}}" wx:key="id" class="card session-card" bindtap="toExam">
+      <view class="session-main">
+        <view class="session-name">{{item.name}}</view>
+        <view class="session-time">开始 {{item.startText}}</view>
+      </view>
+      <view class="session-side">
+        <view class="session-status {{item.statusText === '报名中' ? 'on' : 'off'}}">{{item.statusText}}</view>
+        <view class="session-arrow">›</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{entitlement}}" class="section">
+    <view class="section-head"><view class="title-bar"></view>价格与权益</view>
+    <view class="card price-card">
+      <view class="price-row">
+        <view class="price-left">
+          <view class="price-main">
+            <text class="price-symbol">¥</text>
+            <text class="price-num">{{entitlement.priceText}}</text>
+            <text class="price-unit">起</text>
+          </view>
+          <view class="price-meta">共 {{entitlement.count}} 个题库包 · 含 {{entitlement.questionCount}} 题 · 有效期最长 {{entitlement.maxValidityDays}} 天</view>
+        </view>
+        <view class="price-buy" bindtap="toMall">去开通</view>
+      </view>
+      <view class="price-benefits">
+        <view class="benefit-item">全量题库与解析</view>
+        <view class="benefit-item">错题本与收藏同步</view>
+        <view class="benefit-item">模拟考试不限次</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-head"><view class="title-bar"></view>科目练习</view>
+    <view wx:if="{{subjects.length === 0}}" class="state-box">暂无科目</view>
+
+    <view wx:for="{{subjects}}" wx:key="id" class="card subject-card">
+      <view class="subject-head">
+        <view class="subject-name">{{item.name}}</view>
+        <view class="subject-count">{{item.questionCount || 0}} 题</view>
+      </view>
+      <view wx:if="{{item.intro}}" class="subject-intro">{{item.intro}}</view>
+
+      <view class="mode-grid">
+        <view class="mode-item" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="SEQUENCE" bindtap="startPractice">
+          <view class="mode-icon mode-blue icon-list"></view>
+          <view class="mode-text">顺序练习</view>
+        </view>
+        <view class="mode-item" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="RANDOM" bindtap="startPractice">
+          <view class="mode-icon mode-purple icon-shuffle"></view>
+          <view class="mode-text">随机练习</view>
+        </view>
+        <view class="mode-item" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="WRONG" bindtap="startPractice">
+          <view class="mode-icon mode-red icon-bookx"></view>
+          <view class="mode-text">错题重练</view>
+        </view>
+        <view class="mode-item" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="toggleKnowledge">
+          <view class="mode-icon mode-amber icon-bulb"></view>
+          <view class="mode-text">知识点</view>
+        </view>
+        <view class="mode-item" data-id="{{item.id}}" data-name="{{item.name}}" data-mode="RANDOM" data-mock="1" bindtap="startPractice">
+          <view class="mode-icon mode-green icon-clock"></view>
+          <view class="mode-text">模拟考试</view>
+        </view>
+      </view>
+
+      <view wx:if="{{kpOpen[item.id]}}" class="kp-panel">
+        <view wx:for="{{kpMap[item.id]}}" wx:for-item="kp" wx:key="id"
+              data-subject-id="{{item.id}}" data-name="{{item.name}}" data-kp-id="{{kp.id}}" data-kp-name="{{kp.name}}"
+              bindtap="startKnowledgePractice" class="kp-chip">{{kp.name}}</view>
+        <view wx:if="{{!kpMap[item.id] || kpMap[item.id].length === 0}}" class="kp-empty">该科目暂无知识点</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="bottom-bar">
+    <view class="bottom-btn ghost" bindtap="toCourses">配套课程</view>
+    <view class="bottom-btn primary" bindtap="toExam">去考试中心</view>
+  </view>
 </view>

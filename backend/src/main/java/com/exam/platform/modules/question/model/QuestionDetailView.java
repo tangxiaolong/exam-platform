@@ -14,6 +14,7 @@ public record QuestionDetailView(
         String difficulty,
         String tags,
         String status,
-        Integer version
+        Integer version,
+        String source
 ) {
 }

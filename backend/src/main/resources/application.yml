@@ -36,7 +36,11 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # SQL 日志走 SLF4J（logback）而不是 System.out：
+    # StdOutImpl 直接写 System.out，编码跟随 file.encoding（JDK 17 在 Windows 上是 GBK），
+    # 而 logback 的 console appender 是 UTF-8——同一终端两套编码，中文必然乱码；
+    # 而且绕过日志系统就拿不到脱敏、traceId 和按级别关闭的能力。
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
     # 单条 SQL 执行上限（秒）。超时后驱动抛 QueryTimeoutException，
     # 由 GlobalExceptionHandler 转成可重试的业务码，避免慢查询把线程池拖死
     default-statement-timeout: 10
@@ -165,6 +169,28 @@ app:
     mock: true
     app-id: ${WECHAT_APP_ID:wx-demo-appid}
     app-secret: ${WECHAT_APP_SECRET:wx-demo-secret}
+    pay:
+      # 仅 mock=false 时生效；任一项缺失会让应用直接启动失败（而不是等第一笔支付才炸）
+      app-id: ${WECHAT_APP_ID:wx-demo-appid}
+      mch-id: ${WECHAT_PAY_MCH_ID:}
+      api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+      merchant-serial-number: ${WECHAT_PAY_MERCHANT_SERIAL:}
+      # 二选一：私钥内容优先，容器环境通常用挂载文件
+      private-key: ${WECHAT_PAY_PRIVATE_KEY:}
+      private-key-path: ${WECHAT_PAY_PRIVATE_KEY_PATH:}
+      # 必须是 https 公网地址，微信不会回调 http
+      notify-url: ${WECHAT_PAY_NOTIFY_URL:}
+      api-base: ${WECHAT_PAY_API_BASE:https://api.mch.weixin.qq.com}
+      # 回调时间戳容忍窗口：防重放，必须配合验签一起用
+      timestamp-tolerance-seconds: 300
+      # 平台证书定时刷新；轮换窗口内的新证书由「未知 serial 主动刷新」兜底
+      certificate-refresh-interval-seconds: 43200
+      # 支付单创建后多久仍未支付即进入补偿（必须小于订单有效期 30 分钟）
+      unpaid-timeout-minutes: 15
+      compensation-enabled: true
+      compensation-cron: ${APP_PAY_COMPENSATION_CRON:0 */10 * * * *}
+      compensation-batch-size: 100
+      compensation-expected-interval-seconds: 600
   exam:
     auto-submit-enabled: true
     auto-submit-interval-ms: 30000
@@ -204,6 +230,9 @@ app:
     recon-lookback-days: ${APP_ORG_QUOTA_RECON_LOOKBACK_DAYS:7}
   demo-data:
     enabled: true
+    # 各功能扩展演示数据（订单/成绩/机构/审计等）；测试上下文未显式开启时默认关闭
+    extra:
+      enabled: true
 
 logging:
   level:

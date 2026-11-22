@@ -56,7 +56,8 @@ import java.util.concurrent.Executor;
 public class ExportService {
 
     private static final Set<String> TYPES = Set.of(
-            ExportTask.TYPE_ORDER, ExportTask.TYPE_RESULT, ExportTask.TYPE_REGISTRATION);
+            ExportTask.TYPE_ORDER, ExportTask.TYPE_RESULT, ExportTask.TYPE_REGISTRATION,
+            ExportTask.TYPE_SESSION_ANALYTICS);
     private static final DateTimeFormatter FILE_TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final int MAX_ROWS = 50_000;
 
@@ -65,6 +66,7 @@ public class ExportService {
     private final ExamAttemptMapper attemptMapper;
     private final ExamRegistrationMapper registrationMapper;
     private final ExamResultMapper resultMapper;
+    private final com.exam.platform.modules.exam.ExamReportService reportService;
     private final Executor executor;
     private final String exportDir;
 
@@ -73,6 +75,7 @@ public class ExportService {
                          ExamAttemptMapper attemptMapper,
                          ExamRegistrationMapper registrationMapper,
                          ExamResultMapper resultMapper,
+                         com.exam.platform.modules.exam.ExamReportService reportService,
                          @Qualifier("exportExecutor") Executor executor,
                          @Value("${app.export.dir:./data/exports}") String exportDir) {
         this.taskMapper = taskMapper;
@@ -80,6 +83,7 @@ public class ExportService {
         this.attemptMapper = attemptMapper;
         this.registrationMapper = registrationMapper;
         this.resultMapper = resultMapper;
+        this.reportService = reportService;
         this.executor = executor;
         this.exportDir = exportDir;
     }
@@ -160,6 +164,7 @@ public class ExportService {
             case ExportTask.TYPE_ORDER -> buildOrderCsv(request);
             case ExportTask.TYPE_RESULT -> buildResultCsv(request);
             case ExportTask.TYPE_REGISTRATION -> buildRegistrationCsv(request);
+            case ExportTask.TYPE_SESSION_ANALYTICS -> buildSessionAnalyticsCsv(request);
             default -> throw new BizException("EXPORT_TYPE_UNSUPPORTED", "不支持的报表类型：" + task.getType());
         };
 
@@ -302,6 +307,49 @@ public class ExportService {
         return new ExportPayload(csv(rows), registrations.size());
     }
 
+    /** 场次成绩分析：概览 + 分数段分布 + 逐题正确率，单文件三段，便于直接发给讲评人。 */
+    private ExportPayload buildSessionAnalyticsCsv(ExportRequest request) {
+        var analytics = reportService.analytics(request.sessionId());
+        var accuracy = reportService.questionAccuracy(request.sessionId());
+        List<String[]> rows = new ArrayList<>();
+
+        rows.add(new String[]{"概览"});
+        rows.add(new String[]{"指标", "值"});
+        rows.add(new String[]{"参考人数", String.valueOf(analytics.participantCount())});
+        rows.add(new String[]{"满分", String.valueOf(analytics.fullScore())});
+        rows.add(new String[]{"平均分", analytics.avgScore().toPlainString()});
+        rows.add(new String[]{"最高分", analytics.maxScore().toPlainString()});
+        rows.add(new String[]{"最低分", analytics.minScore().toPlainString()});
+        rows.add(new String[]{"及格率(≥" + analytics.passPercent() + "%)",
+                analytics.passRate().toPlainString()});
+
+        rows.add(new String[]{""});
+        rows.add(new String[]{"分数段分布"});
+        rows.add(new String[]{"分数段", "人数"});
+        for (com.exam.platform.modules.exam.ExamReportView.Band band : analytics.distribution()) {
+            rows.add(new String[]{band.label(), String.valueOf(band.count())});
+        }
+
+        rows.add(new String[]{""});
+        rows.add(new String[]{"逐题正确率"});
+        rows.add(new String[]{"题目ID", "题干", "作答次数", "答对次数", "正确率%"});
+        for (com.exam.platform.modules.exam.ExamReportView.QuestionAccuracy item : accuracy) {
+            rows.add(new String[]{String.valueOf(item.questionId()), item.stem(),
+                    String.valueOf(item.answered()), String.valueOf(item.correct()),
+                    item.accuracy().toPlainString()});
+        }
+
+        rows.add(new String[]{""});
+        rows.add(new String[]{"成绩排行（前 20）"});
+        rows.add(new String[]{"名次", "考生", "总分"});
+        for (com.exam.platform.modules.exam.ExamReportView.LeaderboardEntry entry
+                : reportService.leaderboard(request.sessionId(), 20)) {
+            rows.add(new String[]{String.valueOf(entry.rank()), entry.userName(),
+                    entry.totalScore().toPlainString()});
+        }
+        return new ExportPayload(csv(rows), analytics.participantCount());
+    }
+
     // ------------------------------------------------------------------ 工具
 
     private ExportTaskView toView(ExportTask task) {
@@ -346,7 +394,10 @@ public class ExportService {
 
     private void validate(ExportRequest request) {
         if (request.type() == null || !TYPES.contains(request.type())) {
-            throw BizException.badRequest("报表类型不合法，支持 ORDER/RESULT/REGISTRATION");
+            throw BizException.badRequest("报表类型不合法，支持 ORDER/RESULT/REGISTRATION/SESSION_ANALYTICS");
+        }
+        if (ExportTask.TYPE_SESSION_ANALYTICS.equals(request.type()) && request.sessionId() == null) {
+            throw BizException.badRequest("成绩分析导出需要指定场次");
         }
     }
 

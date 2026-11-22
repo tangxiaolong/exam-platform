@@ -1,0 +1,45 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{list.length === 0}}" class="state-box">还没有收藏的题目，练习时点「收藏本题」即可</view>
+
+  <view wx:for="{{list}}" wx:key="id" class="card fav-card" bindtap="toggle" data-id="{{item.id}}">
+    <view class="fav-meta">
+      <view class="fav-type">{{item.typeText}}</view>
+      <view wx:if="{{item.difficultyText}}" class="fav-diff">{{item.difficultyText}}</view>
+      <view class="fav-time" wx:if="{{item.favoriteAt}}">{{item.favoriteAt}}</view>
+    </view>
+    <view class="fav-stem">{{item.stem}}</view>
+
+    <view wx:if="{{expandedId === item.id}}" class="fav-expand">
+      <view class="ans-row">
+        <view class="ans-label">正确答案</view>
+        <view class="ans-value good">{{item.correctAnswer || '暂无'}}</view>
+      </view>
+      <view wx:if="{{item.analysis}}" class="analysis">解析：{{item.analysis}}</view>
+
+      <view class="retry-box">
+        <view wx:if="{{retry && retry.questionId === item.id}}">
+          <view class="retry-hint">重做（选择答案后提交，本地判分）</view>
+          <view wx:for="{{retry.options}}" wx:key="key" catchtap="chooseRetryOption" data-key="{{item.key}}"
+                class="retry-option {{item.active ? 'active' : ''}}">
+            <text class="retry-key">{{item.key}}</text>
+            <text>{{item.text}}</text>
+          </view>
+          <view wx:if="{{retry.submitted}}" class="retry-result {{retry.matched ? 'good' : 'bad'}}">
+            {{retry.matched ? '回答正确' : '回答错误，正确答案：' + item.correctAnswer}}
+          </view>
+          <view class="retry-actions">
+            <view wx:if="{{!retry.submitted}}" catchtap="submitRetry" class="retry-btn primary">提交答案</view>
+            <view catchtap="closeRetry" class="retry-btn ghost">{{retry.submitted ? '收起' : '取消'}}</view>
+          </view>
+        </view>
+        <view wx:else catchtap="startRetry" data-id="{{item.id}}" class="retry-btn outline">重做此题</view>
+      </view>
+    </view>
+
+    <view class="fav-foot">
+      <view class="expand-tip">{{expandedId === item.id ? '收起' : '点击查看答案与解析'}}</view>
+      <view catchtap="remove" data-id="{{item.id}}" class="remove-btn">取消收藏</view>
+    </view>
+  </view>
+</view>

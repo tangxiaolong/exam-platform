@@ -3,6 +3,7 @@ package com.exam.platform.common.exception;
 import com.exam.platform.common.api.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
@@ -49,6 +50,20 @@ public class GlobalExceptionHandler {
     public Result<Void> handleDbUnavailable(Exception e) {
         log.warn("数据库连接不可用：{}", e.getMessage());
         return Result.fail("COMMON_BUSY", "服务繁忙，请稍后重试");
+    }
+
+    /**
+     * 唯一键冲突。
+     *
+     * <p>项目 / 科目 / 课程的编码都是「租户内唯一」，重复时数据库抛
+     * {@link DuplicateKeyException}。不单独处理会落到兜底分支，前端看到的是
+     * 「服务开小差了」——运营只会以为系统坏了，而实际要做的是换一个编码。
+     * 这类冲突是用户输入问题，不是服务故障。</p>
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result<Void> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一键冲突：{}", e.getMessage());
+        return Result.fail("COMMON_CONFLICT", "编码已存在，请更换后重试（同一租户内编码必须唯一）");
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})

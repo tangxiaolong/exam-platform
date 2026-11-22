@@ -1,41 +1,124 @@
-<view class="container">
-  <view wx:if="{{loading}}" class="empty">加载中…</view>
-  <view wx:elif="{{!result}}" class="empty">暂无成绩</view>
+<view class="page">
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{!result}}" class="state-box">暂无成绩</view>
 
   <block wx:else>
-    <view class="score-card">
-      <view class="muted light">{{result.status === 'REVIEWING' ? '当前客观题得分' : '本次得分'}}</view>
-      <view class="score">{{result.totalScore}}<text class="full">/ {{result.fullScore}}</text></view>
-      <view class="stat">
-        答对 {{result.correctCount}} / {{result.questionCount}} 题 · 交卷时间 {{submittedText}}
+    <view class="hero">
+      <view class="hero-deco"></view>
+      <view class="hero-top">
+        <view class="hero-session">{{result.sessionName || '考试成绩单'}}</view>
+        <button wx:if="{{result.status === 'GRADED' || result.status === 'PUBLISHED'}}"
+                class="share-btn" open-type="share"></button>
       </view>
-      <view class="tag light-tag">{{statusText}}</view>
+      <view class="score-row">
+        <view class="score-num">{{totalScoreText}}</view>
+        <view class="score-full">/ {{result.fullScore}} 分</view>
+      </view>
+      <view class="score-bar">
+        <view class="score-bar-inner" style="width: {{scorePct}}%;"></view>
+      </view>
+      <view class="hero-meta">
+        答对 {{result.correctCount}}/{{result.questionCount}} 题 · 交卷 {{submittedText}}
+      </view>
+      <view class="hero-tags">
+        <view class="hero-tag">{{statusText}}</view>
+        <view class="hero-tag" wx:if="{{rank && rank.rank}}">场次第 {{rank.rank}} 名 · 共 {{rank.participantCount}} 人</view>
+      </view>
     </view>
 
-    <view wx:if="{{result.status === 'REVIEWING'}}" class="card">
-      <view class="muted">本科目包含主观题，正在人工阅卷中。阅卷完成后成绩与解析会自动对本人生效。</view>
-    </view>
-
-    <view wx:elif="{{result.items.length === 0}}" class="card">
-      <view class="muted">成绩尚未发布，题目明细暂不可见。</view>
-    </view>
-
-    <view wx:for="{{result.items}}" wx:key="questionId" class="card">
-      <view class="row">
-        <view class="tag">{{item.type === 'SINGLE' ? '单选' : item.type === 'MULTIPLE' ? '多选' : item.type === 'ESSAY' ? '主观题' : '判断'}}</view>
-        <view class="{{item.correct ? 'ok-text' : (item.type === 'ESSAY' ? 'muted' : 'bad-text')}}">
-          {{item.type === 'ESSAY' ? (item.marked ? '已阅卷' : '待阅卷') : (item.correct ? '✓ 正确' : '✗ 错误')}}
-          · {{item.gotScore}}/{{item.score}} 分
+    <view wx:if="{{trend}}" class="trend-card">
+      <view class="trend-head">
+        <view class="section-title"><view class="title-bar"></view>成绩趋势 · 历史对比</view>
+        <view class="trend-count">最近 {{trend.items.length}} 次</view>
+      </view>
+      <view class="trend-stats">
+        <view class="trend-stat">
+          <view class="trend-stat-num">{{trend.currentPct}}<text class="unit">%</text></view>
+          <view class="trend-stat-label">本次</view>
+        </view>
+        <view class="trend-stat">
+          <view class="trend-stat-num best">{{trend.best}}<text class="unit">%</text></view>
+          <view class="trend-stat-label">历史最佳</view>
+        </view>
+        <view class="trend-stat">
+          <view class="trend-stat-num">{{trend.avg}}<text class="unit">%</text></view>
+          <view class="trend-stat-label">历史平均</view>
         </view>
       </view>
-      <view class="stem">{{item.questionId}}. {{item.stem}}</view>
-      <view class="muted" wx:if="{{item.type !== 'ESSAY'}}">标准答案：{{item.standardAnswer}}</view>
-      <view class="muted" wx:else>参考答案：{{item.standardAnswer}}</view>
-      <view class="muted">你的答案：{{item.yourAnswer.length ? item.yourAnswer : '未作答'}}</view>
-      <view class="analysis" wx:if="{{item.remark}}">阅卷意见：{{item.remark}}</view>
-      <view class="analysis" wx:elif="{{item.analysis}}">解析：{{item.analysis}}</view>
+      <view class="trend-bars">
+        <view wx:for="{{trend.items}}" wx:key="attemptId" class="trend-bar-col">
+          <view class="trend-bar-val">{{item.pct}}</view>
+          <view class="trend-bar-track">
+            <view class="trend-bar-fill {{item.isCurrent ? 'current' : ''}}" style="height: {{item.pct}}%;"></view>
+          </view>
+          <view class="trend-bar-label {{item.isCurrent ? 'current' : ''}}">{{item.dateText}}</view>
+        </view>
+      </view>
+      <view class="trend-delta {{trend.deltaDir}}">{{trend.deltaLabel}}</view>
     </view>
 
-    <view class="btn-primary" bindtap="backToList">返回考试中心</view>
+    <view wx:if="{{result.status === 'REVIEWING'}}" class="notice-card">
+      本科目包含主观题，正在人工阅卷中。阅卷完成后成绩与解析会自动对本人生效。
+    </view>
+
+    <view wx:elif="{{result.items.length === 0}}" class="notice-card">
+      成绩尚未发布，题目明细暂不可见。
+    </view>
+
+    <block wx:else>
+      <view class="section-head">
+        <view class="section-title"><view class="title-bar"></view>题目明细</view>
+        <view class="filter-chips">
+          <view class="chip {{!filterWrong ? 'on' : ''}}" data-wrong="0" bindtap="toggleFilter">全部 {{result.items.length}}</view>
+          <view class="chip {{filterWrong ? 'on' : ''}}" data-wrong="1" bindtap="toggleFilter">仅错题 {{wrongItemsCount}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{filteredItems.length === 0}}" class="state-box">太棒了，客观题没有错题！</view>
+
+      <view wx:for="{{filteredItems}}" wx:key="questionId"
+            class="card item-card {{item.type === 'ESSAY' ? '' : (item.correct ? 'item-ok' : 'item-bad')}}">
+        <view class="item-top">
+          <view class="item-left">
+            <view class="item-no">{{index + 1}}</view>
+            <view class="tag">{{item.type === 'SINGLE' ? '单选' : item.type === 'MULTIPLE' ? '多选' : item.type === 'ESSAY' ? '主观题' : '判断'}}</view>
+          </view>
+          <view class="item-verdict {{item.correct ? 'ok-text' : (item.type === 'ESSAY' ? 'muted' : 'bad-text')}}">
+            {{item.type === 'ESSAY' ? (item.marked ? '已阅卷' : '待阅卷') : (item.correct ? '✓ 正确' : '✗ 错误')}}
+            · {{item.gotScore}}/{{item.score}} 分
+          </view>
+        </view>
+
+        <view class="stem">{{item.stem}}</view>
+
+        <view class="answer-row">
+          <view class="answer-label">标准答案</view>
+          <view class="answer-value">{{item.standardAnswerText}}</view>
+        </view>
+        <view class="answer-row">
+          <view class="answer-label">你的答案</view>
+          <view class="answer-value {{item.type === 'ESSAY' ? '' : (item.correct ? 'ok-text' : 'bad-text')}}">{{item.yourAnswerText}}</view>
+        </view>
+
+        <view class="analysis" wx:if="{{item.remark}}">阅卷意见：{{item.remark}}</view>
+        <view class="analysis" wx:elif="{{item.analysis}}">解析：{{item.analysis}}</view>
+
+        <view class="item-actions">
+          <view class="act-btn {{favoritedMap[item.questionId] ? 'on' : ''}}"
+                data-id="{{item.questionId}}" bindtap="toggleFavorite">
+            {{favoritedMap[item.questionId] ? '★ 已收藏' : '☆ 收藏'}}
+          </view>
+          <view class="act-btn {{wrongMap[item.questionId] ? 'on' : ''}}"
+                data-id="{{item.questionId}}" bindtap="addWrongBook">
+            {{wrongMap[item.questionId] ? '✓ 已在错题本' : '+ 加入错题本'}}
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <view class="bottom-bar">
+      <view class="bottom-btn ghost" bindtap="backToList">返回考试中心</view>
+      <view class="bottom-btn primary" bindtap="goWrongBook">去错题本复习</view>
+    </view>
   </block>
 </view>

@@ -236,11 +236,13 @@ public class ReconciliationService {
 
         for (ReconCheckMapper.AmountMismatchRow row
                 : checkMapper.findPaymentAmountMismatch(MAX_ROWS_PER_CHECK)) {
+            // bizNo 用订单号：页面上「对象」是可点击的定位链接，落到订单管理页按单号筛选。
+            // 支付单号放在 detail 里，核渠道流水时仍然找得到。
             result.add(anomaly(report, TradeReconAnomaly.TYPE_PAYMENT_AMOUNT_MISMATCH,
-                    TradeReconAnomaly.BIZ_PAYMENT, row.getPaymentId(), row.getPayNo(),
+                    TradeReconAnomaly.BIZ_PAYMENT, row.getPaymentId(), row.getOrderNo(),
                     "订单应付 " + row.getOrderPayAmountFen() + " 分",
                     "支付单金额 " + row.getPaymentAmountFen() + " 分",
-                    "已支付金额与订单应付不一致，需核对渠道流水"));
+                    "支付单 " + row.getPayNo() + " 已支付金额与订单应付不一致，需核对渠道流水"));
         }
 
         for (ReconCheckMapper.AccountDriftRow row : checkMapper.findAccountLedgerDrift(MAX_ROWS_PER_CHECK)) {

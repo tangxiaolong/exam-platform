@@ -102,6 +102,8 @@ public class ContentAdminController {
             detail = "#result.data.name")
     public Result<ExamKnowledgePoint> updateKnowledgePoint(@PathVariable Long id,
                                                            @RequestBody ExamKnowledgePoint point) {
+        // 知识点改名会影响所有引用它的试卷与覆盖度统计，值得一道独立权限码
+        com.exam.platform.common.security.UserContext.requirePermission("content:manage");
         return Result.ok(contentService.updateKnowledgePoint(id, point));
     }
 

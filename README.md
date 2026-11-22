@@ -4,11 +4,13 @@
 
 三个工程，不做服务拆分：
 
-| 工程 | 技术栈 | 说明 |
-|---|---|---|
-| `backend/` | Java 17 + Spring Boot 3.2 + MyBatis-Plus 3.5.9 | **一个**后台服务（模块化单体），替代文档中的多微服务 |
-| `admin-web/` | Vue 3 + TypeScript + Vite + Element Plus + Pinia | 独立运营后台 |
-| `miniprogram/` | 微信原生小程序（纯 JS，零构建） | 考生端 |
+
+| 工程             | 技术栈                                              | 说明                           |
+| -------------- | ------------------------------------------------ | ---------------------------- |
+| `backend/`     | Java 17 + Spring Boot 3.2 + MyBatis-Plus 3.5.9   | **一个**后台服务（模块化单体），替代文档中的多微服务 |
+| `admin-web/`   | Vue 3 + TypeScript + Vite + Element Plus + Pinia | 独立运营后台                       |
+| `miniprogram/` | 微信原生小程序（纯 JS，零构建）                                | 考生端                          |
+
 
 > 设计取舍：文档第 3 节明确「首期建议采用模块化单体 + 核心服务独立部署的渐进式方案，不以服务数量作为微服务成熟度指标」，因此本工程把 `identity / content / question / paper / exam / learning / trade / entitlement` 全部按**包边界**落在同一个 Spring Boot 进程内，模块之间只通过 Service 协作，不跨模块读写对方表。后续需要独立部署时，按包直接拆成独立工程即可。
 
@@ -55,7 +57,11 @@ teamGitCode/
 
 ---
 
+
+
 ## 2. 快速开始
+
+
 
 ### 2.1 后端（默认 H2，无需装任何中间件）
 
@@ -74,7 +80,7 @@ mvn spring-boot:run
 ```bash
 createdb exam_platform            # 或用 DDL 工具建库，字符集 utf8mb4
 cd backend
-mvn spring-boot:run "-Dspring-boot.run.profiles=mysql"
+mvn spring-boot:run "-D spring-boot.run.profiles=mysql"
 # PowerShell 下 -D 参数必须整体加引号，否则会被拆成 "-Dspring-boot" 与 ".run.profiles=mysql"，
 # Maven 会报 Unknown lifecycle phase ".run.profiles=mysql"
 # 可用环境变量覆盖：MYSQL_URL / MYSQL_USER / MYSQL_PASSWORD
@@ -83,25 +89,34 @@ mvn spring-boot:run "-Dspring-boot.run.profiles=mysql"
 
 生产必须覆盖的配置：
 
-| 配置 | 说明 |
-|---|---|
-| `APP_JWT_SECRET` | JWT 签名密钥（≥32 字节） |
-| `app.wechat.mock=false` + `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | 关闭模拟登录与模拟支付回调 |
-| `app.demo-data.enabled=false` | 关闭演示数据 |
-| `APP_TRUSTED_PROXIES` | 部署在 Nginx / SLB 之后**必须**填可信代理网段（如 `10.0.0.0/8`），否则 IP 维度限流按 socket 对端计数，所有用户会共用同一份配额 |
-| `APP_RATE_LIMIT_BACKEND=redis` + `spring.data.redis.*` | **多实例部署必须**切到分布式限流，否则实际配额 = 配置值 × 实例数 |
-| `APP_REDIS_HEALTH_ENABLED=true` | 切到 Redis 后端时打开 Redis 健康探测 |
+
+| 配置                                                              | 说明                                                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `APP_JWT_SECRET`                                                | JWT 签名密钥（≥32 字节）                                                                     |
+| `app.wechat.mock=false` + `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | 关闭模拟登录，改走真实 `jscode2session`                                                          |
+| `WECHAT_PAY_MCH_ID` / `WECHAT_PAY_API_V3_KEY` / `WECHAT_PAY_MERCHANT_SERIAL` | 微信支付 v3 商户号、APIv3 密钥（32 字节）、商户证书序列号；`mock=false` 时任一缺失会**直接启动失败**（不给「线上误用模拟支付」留窗口） |
+| `WECHAT_PAY_PRIVATE_KEY` 或 `WECHAT_PAY_PRIVATE_KEY_PATH` | 商户 API 私钥（PKCS#8 PEM）；容器环境通常挂载文件路径                                                        |
+| `WECHAT_PAY_NOTIFY_URL`                                         | 支付回调地址，**必须 https 公网可达**（配成 http 时启动即报错，因为微信不会回调 http）                              |
+| `app.demo-data.enabled=false`                                   | 关闭演示数据                                                                               |
+| `APP_TRUSTED_PROXIES`                                           | 部署在 Nginx / SLB 之后**必须**填可信代理网段（如 `10.0.0.0/8`），否则 IP 维度限流按 socket 对端计数，所有用户会共用同一份配额 |
+| `APP_RATE_LIMIT_BACKEND=redis` + `spring.data.redis.*`          | **多实例部署必须**切到分布式限流，否则实际配额 = 配置值 × 实例数                                                |
+| `APP_REDIS_HEALTH_ENABLED=true`                                 | 切到 Redis 后端时打开 Redis 健康探测                                                            |
+
+
+
 
 ### 2.1.1 限流（P2-A 准入硬指标）
 
 令牌桶按「规则 × 维度」独立计数，用户维度与 IP 维度**任一耗尽即拒绝**——只按用户限流挡不住批量注册刷号，只按 IP 限流挡不住同出口多账号刷接口。
 
-| 规则 | 命中路径 | 每用户 | 每 IP |
-|---|---|---|---|
-| `answer-save` | `/v1/attempts/*/answers/*`、`/v1/practice/sessions/*/answers` | 20/分钟 | 120/分钟 |
-| `auth-login` | `/v1/auth/login`、`/v1/auth/wechat-login` | 60/分钟 | 300/分钟 |
-| `export` | `/v1/admin/exports/*/download`、`/v1/admin/reconciliation/anomalies/export` | 10/分钟 | 30/分钟 |
-| `default` | 其余 `/v1/**` | 300/分钟 | 600/分钟 |
+
+| 规则            | 命中路径                                                                       | 每用户    | 每 IP   |
+| ------------- | -------------------------------------------------------------------------- | ------ | ------ |
+| `answer-save` | `/v1/attempts/*/answers/*`、`/v1/practice/sessions/*/answers`               | 20/分钟  | 120/分钟 |
+| `auth-login`  | `/v1/auth/login`、`/v1/auth/wechat-login`                                   | 60/分钟  | 300/分钟 |
+| `export`      | `/v1/admin/exports/*/download`、`/v1/admin/reconciliation/anomalies/export` | 10/分钟  | 30/分钟  |
+| `default`     | 其余 `/v1/**`                                                                | 300/分钟 | 600/分钟 |
+
 
 `export` 单独配一组更严的配额，理由是这类接口的「一次请求」等于「一整份数据」：订单报表一次就是全量订单，异常清单一次是全部待处置记录。走 `default` 的 300 次/分钟，意味着一个账号一分钟能把整库拉走 300 遍，而它平时一分钟只会点两次——人手动下载不会超过 10 次，自动化爬取一定会，配额就是用来区分这两者的。
 
@@ -119,6 +134,8 @@ Redis 不可用时**降级到本地令牌桶（fail-degraded），不是放行**
 - 同时置一段熔断冷却（`app.rate-limit.redis-degraded-cooldown-ms`，默认 5s）：冷却期内不再尝试 Redis，否则每个请求都要先付一次连接超时，限流自己就成了拖慢全站的元凶；到期自动试探一次，成功即恢复分布式口径；
 - 指标分两条：`app.ratelimit.backend.error`（真去连 Redis 但失败）、`app.ratelimit.backend.degraded{decision=allow|deny}`（这次由本地桶判定）。两者一起才能回答「降级持续了多久、有没有误拒正常用户」；
 - 想把口径退回去做纯 fail-open：`app.rate-limit.redis-fallback=false`。
+
+
 
 ### 2.1.2 文件上传
 
@@ -148,6 +165,8 @@ Redis 不可用时**降级到本地令牌桶（fail-degraded），不是放行**
   ]
 }
 ```
+
+
 
 ### 2.1.4 审计（声明式，非手写）
 
@@ -184,15 +203,19 @@ APP_AUDIT_ARCHIVE_ENABLED=true APP_AUDIT_RETENTION_DAYS=180
 - 用原生 `DELETE` 而非逻辑删除：逻辑删除留下 `deleted=1` 的占位行，表照样膨胀，而审计的语义是「这条记录真实存在过」；
 - 归档任务接入了「定时任务健康」指标——它失败通常意味着磁盘不可写或数据库拒绝删除，两种都需要人介入，等磁盘满了才发现就晚了。
 
+
+
 ### 2.1.5 超时保护
 
 对齐 4.5「答题保存接口具备幂等、限流和**超时保护**」。超时保护分三层，避免慢查询在集中开考时一点点耗尽线程与连接：
 
-| 层 | 配置 | 作用 |
-|---|---|---|
-| SQL 执行 | `mybatis-plus.configuration.default-statement-timeout: 10` | 每条语句的执行上限（秒） |
-| 取连接 | `spring.datasource.hikari.connection-timeout: 3000` | 池满时快速失败，不让请求线程无限排队 |
-| 网络 | MySQL URL `connectTimeout=3000&socketTimeout=30000` | 连不上 / 读不返回时断开，而不是挂在 socket 上 |
+
+| 层      | 配置                                                         | 作用                           |
+| ------ | ---------------------------------------------------------- | ---------------------------- |
+| SQL 执行 | `mybatis-plus.configuration.default-statement-timeout: 10` | 每条语句的执行上限（秒）                 |
+| 取连接    | `spring.datasource.hikari.connection-timeout: 3000`        | 池满时快速失败，不让请求线程无限排队           |
+| 网络     | MySQL URL `connectTimeout=3000&socketTimeout=30000`        | 连不上 / 读不返回时断开，而不是挂在 socket 上 |
+
 
 超时与过载异常单独归类，**不当成代码 bug**：`QueryTimeoutException` / `CannotAcquireLockException` → `COMMON_TIMEOUT`，`CannotGetJdbcConnectionException` → `COMMON_BUSY`，均为可重试语义，日志降为 warn（走通用分支会打 error 并返回「服务开小差」，既淹没有效告警，客户端也不知道该不该重试）。
 
@@ -219,7 +242,7 @@ backend/src/main/resources/db/migration/
 当前版本：**v10**。全新库执行一次 `mvn spring-boot:run` 会依次跑完 10 个脚本（H2 约 0.2s，MySQL 约 4.6s）。
 
 - 应用启动时自动迁移，`spring.flyway.baseline-on-migrate=true`：历史上用 `schema.sql` 建过表的库首次接入会**自动打基线**，不会因「表已存在」启动失败；
-- **已部署的库不要再改 `V1`**：结构变更新增 `V2__xxx.sql`，改基线会让已迁移的库因 checksum 不一致而拒绝启动；
+- **已部署的库不要再改** `V1`：结构变更新增 `V2__xxx.sql`，改基线会让已迁移的库因 checksum 不一致而拒绝启动；
 - 二级索引同步进基线，而不是留一份「生产环境请手工执行 `mysql-indexes.sql`」的散落脚本——新库必须是可复现的完整结构；
 - H2（`MODE=MySQL`）与 MySQL 8.x 共用同一套脚本，测试跑的就是部署用的脚本。
 
@@ -229,7 +252,7 @@ backend/src/main/resources/db/migration/
 bash tools/check-mysql-migration.sh      # 或 pwsh tools/check-mysql-migration.ps1
 ```
 
-CI 的 `MySQL 8 · flyway migrate` job 每次 PR 都跑同一件事，并断言「重复 `migrate` 是无操作」。演练方式与回滚预案见 [`doc/05_数据库迁移演练与回滚预案.md`](doc/05_数据库迁移演练与回滚预案.md)，涉及删改结构的迁移脚本必须在 `deploy/rollback/` 提交同名 `.down.sql`。
+CI 的 `MySQL 8 · flyway migrate` job 每次 PR 都跑同一件事，并断言「重复 `migrate` 是无操作」。演练方式与回滚预案见 `[doc/05_数据库迁移演练与回滚预案.md](doc/05_数据库迁移演练与回滚预案.md)`，涉及删改结构的迁移脚本必须在 `deploy/rollback/` 提交同名 `.down.sql`。
 
 ### 2.1.7 可观测性（Prometheus + 告警规则）
 
@@ -270,13 +293,15 @@ curl "http://localhost:8080/api/v1/admin/reconciliation/anomalies/export?handleS
 
 检出的五类不一致：
 
-| 异常类型 | 含义 |
-|---|---|
-| `ORDER_PAID_WITHOUT_ENTITLEMENT` | 订单已支付，但没有权益发放流水 |
-| `ORDER_COMPLETED_WITHOUT_ENTITLEMENT` | 订单已完成，却没有权益流水 |
-| `PAYMENT_PAID_ORDER_NOT_PAID` | 支付单已成功，订单仍是待支付 / 已关闭 |
-| `PAYMENT_AMOUNT_MISMATCH` | 支付金额与订单应付不一致 |
-| `ACCOUNT_LEDGER_DRIFT` | 权益账户余额与流水累计不一致（不变量 `total - used = Σchange_amount`） |
+
+| 异常类型                                  | 含义                                                  |
+| ------------------------------------- | --------------------------------------------------- |
+| `ORDER_PAID_WITHOUT_ENTITLEMENT`      | 订单已支付，但没有权益发放流水                                     |
+| `ORDER_COMPLETED_WITHOUT_ENTITLEMENT` | 订单已完成，却没有权益流水                                       |
+| `PAYMENT_PAID_ORDER_NOT_PAID`         | 支付单已成功，订单仍是待支付 / 已关闭                                |
+| `PAYMENT_AMOUNT_MISMATCH`             | 支付金额与订单应付不一致                                        |
+| `ACCOUNT_LEDGER_DRIFT`                | 权益账户余额与流水累计不一致（不变量 `total - used = Σchange_amount`） |
+
 
 三个刻意的边界：
 
@@ -318,28 +343,86 @@ npm run dev          # http://localhost:5173 ，/api 已代理到 8080
 
 演示数据里的体验考生账号：`student / 123456`（小程序走微信登录，此账号仅供接口调试）。
 
+### 2.4 本地联调启动（本项目当前使用的端口与配置）
+
+上面的 8080 / H2 是「开箱即跑」的默认口径；日常联调用的是 **8090 + MySQL 持久库**，三者端口对齐如下：
+
+| 服务 | 地址 | 配置 |
+| --- | --- | --- |
+| 后端 `backend/` | `http://localhost:8090/api` | `spring-boot.run.profiles=mysql`，库 `127.0.0.1:3306/exam_platform` |
+| 运营后台 `admin-web/` | `http://localhost:5173` | `/api` 代理目标需从 8080 改成 8090（见 `vite.config.ts`） |
+| 小程序 `miniprogram/` | `baseUrl: http://localhost:8090/api/v1` | 见 `config.js` |
+
+启动后端（MySQL 模式，PowerShell；写成单行以避免续行拼接问题）：
+
+```powershell
+cd backend
+$env:MYSQL_PASSWORD='<本机 MySQL 密码>'   # 库/账号默认值见 application-mysql.yml
+mvn -B -ntp spring-boot:run "-Dspring-boot.run.profiles=mysql" "-Dspring-boot.run.arguments=--server.port=8090"
+```
+
+启动成功的判据（约 15s；首次需编译 303 个源文件，会更久）：
+
+```text
+The following 1 profile is active: "mysql"
+Successfully validated 22 migrations (…)   Schema `exam_platform` is up to date. No migration necessary.
+Tomcat started on port 8090 (http) with context path '/api'
+Started ExamPlatformApplication in ~15s
+演示数据初始化完成
+```
+
+就绪后的接口自检（不启动小程序也能验通链路）：
+
+```powershell
+# 1) 登录拿 token
+$w = Invoke-RestMethod -Uri 'http://localhost:8090/api/v1/auth/login' -Method POST -ContentType 'application/json' -Body '{"username":"student","password":"123456"}'
+$h = @{ Authorization = 'Bearer ' + $w.data.token }
+
+# 2) 关键读接口（预期：项目列表有数据、收藏含 difficulty/answerJson、错题本可返回）
+Invoke-RestMethod -Uri 'http://localhost:8090/api/v1/projects?pageNo=1&pageSize=3' -Headers $h
+Invoke-RestMethod -Uri 'http://localhost:8090/api/v1/favorites?pageNo=1&pageSize=10' -Headers $h
+Invoke-RestMethod -Uri 'http://localhost:8090/api/v1/wrong-questions' -Headers $h
+```
+
+**重启流程**（改了后端代码必须重启才生效）：确认端口占用 → 停旧进程 → 起新进程 → 等监听 → 接口自检。
+
+```powershell
+$t = Get-NetTCPConnection -LocalPort 8090 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($t) { Stop-Process -Id $t.OwningProcess -Force }
+Start-Sleep -Seconds 3
+# 再执行上面的 mvn spring-boot:run，等到 "Tomcat started on port 8090" 后做接口自检
+```
+
+> 已知问题：`tools/start-backend.ps1` / `.bat` 的注释段存在 GBK 与 UTF-8 混存，Windows PowerShell 5.1 解析时报 `The string is missing the terminator`。暂以**上面的直接 `mvn` 命令**为准；脚本需整体重存为 UTF-8 才能恢复使用。
+
 ---
+
+
 
 ## 3. 已实现的核心能力（对应验收点）
 
-| 文档要求 | 本工程实现 |
-|---|---|
-| 统一响应体 / traceId | `common/api/Result`、`TraceIdFilter`（响应头 `X-Trace-Id`） |
-| 错误码前缀 | `AUTH_` `TENANT_` `EXAM_` `QUESTION_` `ORDER_` `PAY_` `ENTITLEMENT_` 等，见各 Service |
-| 权限与租户隔离 | JWT 鉴权拦截器 + `/v1/admin/**` 要求平台管理员、`/v1/org/**` 要求机构管理员；**MyBatis-Plus 租户插件在 SQL 层自动追加 `tenant_id`**，客户端传入的 tenant_id 一律不被采信 |
-| 微信登录 | `POST /v1/auth/wechat-login`，openid 只作渠道标识，平台建自身用户主键 |
-| 项目/科目/题库 | 完整 CRUD，题目选项与答案以 JSON 存储，修改递增 `version` |
-| 试卷与快照 | `exam_paper` 定义 + 发布时生成 `exam_paper_snapshot`（含题干/选项/答案/分值 + SHA-256 内容哈希，读取时校验完整性）；支持固定组卷与**规则组卷**（按题型/难度随机抽题、去重、题库不足可读报错、可试组卷预览） |
-| 场次与报名 | 发布后规则锁定；报名校验场次状态、时间窗、名额、重复报名（唯一约束兜底） |
-| 在线考试 | 服务端下发 `started_at` / `deadline_at`；答案保存按 `(attempt_id, question_id)` 唯一 + 版本号防旧覆盖；`resume` 以服务端答案为准；不返回标准答案 |
-| 交卷与判分 | 带状态条件的原子更新 + 结果表唯一约束 → 重复交卷不重复判分；客观题自动判分，成绩可追溯到快照版本 |
-| 主观题与人工阅卷 | 交卷后含主观题 → `REVIEWING`（考生只看到客观题分，明细不可见）；逐题打分、评语、结束阅卷后成绩生效；**成绩更正必须填原因并写入 `exam_result_history` 保留历史版本** |
-| 自动交卷 | `AutoSubmitJob` 定时扫描到期考卷，与主动交卷共用同一状态机 |
-| 交易与支付 | 金额全部以「分」存 `BIGINT`；价格取服务端商品快照；支付回调先落流水再验签+核对金额/币种/状态；按 `transaction_id` 幂等发权益 |
-| 权益 | `entitlement_account` + `entitlement_ledger`，唯一键 `(tenant_id, event_id, entitlement_type, resource_id)` 保证重复回调不重复发放；状态机 AVAILABLE → PART_USED → USED / REVOKED / EXPIRED |
-| 退款 | 申请 → 运营审核 → 退款成功则订单置 `REFUNDED` 并回收未使用权益（`REVOKE` 流水），重复审核幂等 |
-| 消息 | `msg_task` + `msg_send_log` + `msg_subscription`：业务事件先落任务再投递，未授权置 `SKIPPED`、失败按退避重试、管理员可手动重发 |
-| 审计 | 管理端写操作以 `@Audited` 注解声明式记录 `sys_audit_log`；覆盖率由 `AuditCoverageTest` 静态扫描守护，新增写接口漏注解会直接测试失败（见 2.1.4） |
+
+| 文档要求            | 本工程实现                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 统一响应体 / traceId | `common/api/Result`、`TraceIdFilter`（响应头 `X-Trace-Id`）                                                                                                                    |
+| 错误码前缀           | `AUTH_` `TENANT_` `EXAM_` `QUESTION_` `ORDER_` `PAY_` `ENTITLEMENT_` 等，见各 Service                                                                                        |
+| 权限与租户隔离         | JWT 鉴权拦截器 + `/v1/admin/**` 要求平台管理员、`/v1/org/**` 要求机构管理员；**MyBatis-Plus 租户插件在 SQL 层自动追加** `tenant_id`，客户端传入的 tenant_id 一律不被采信                                             |
+| 微信登录            | `POST /v1/auth/wechat-login`，openid 只作渠道标识，平台建自身用户主键                                                                                                                     |
+| 项目/科目/题库        | 完整 CRUD，题目选项与答案以 JSON 存储，修改递增 `version`                                                                                                                         |
+| 试卷与快照           | `exam_paper` 定义 + 发布时生成 `exam_paper_snapshot`（含题干/选项/答案/分值 + SHA-256 内容哈希，读取时校验完整性）；支持固定组卷与**规则组卷**（按题型/难度随机抽题、去重、题库不足可读报错、可试组卷预览）                                       |
+| 场次与报名           | 发布后规则锁定；报名校验场次状态、时间窗、名额、重复报名（唯一约束兜底）                                                                                                                                     |
+| 在线考试            | 服务端下发 `started_at` / `deadline_at`；答案保存按 `(attempt_id, question_id)` 唯一 + 版本号防旧覆盖；`resume` 以服务端答案为准；不返回标准答案                                                              |
+| 交卷与判分           | 带状态条件的原子更新 + 结果表唯一约束 → 重复交卷不重复判分；客观题自动判分，成绩可追溯到快照版本                                                                                                                      |
+| 主观题与人工阅卷        | 交卷后含主观题 → `REVIEWING`（考生只看到客观题分，明细不可见）；逐题打分、评语、结束阅卷后成绩生效；**成绩更正必须填原因并写入** `exam_result_history` **保留历史版本**                                                               |
+| 自动交卷            | `AutoSubmitJob` 定时扫描到期考卷，与主动交卷共用同一状态机                                                                                                                                    |
+| 交易与支付           | 金额全部以「分」存 `BIGINT`；价格取服务端商品快照；支付回调先落流水再验签+核对金额/币种/状态；按 `transaction_id` 幂等发权益                                                                                            |
+| 权益              | `entitlement_account` + `entitlement_ledger`，唯一键 `(tenant_id, event_id, entitlement_type, resource_id)` 保证重复回调不重复发放；状态机 AVAILABLE → PART_USED → USED / REVOKED / EXPIRED |
+| 退款              | 申请 → 运营审核 → 退款成功则订单置 `REFUNDED` 并回收未使用权益（`REVOKE` 流水），重复审核幂等                                                                                                             |
+| 消息              | `msg_task` + `msg_send_log` + `msg_subscription`：业务事件先落任务再投递，未授权置 `SKIPPED`、失败按退避重试、管理员可手动重发                                                                             |
+| 审计              | 管理端写操作以 `@Audited` 注解声明式记录 `sys_audit_log`；覆盖率由 `AuditCoverageTest` 静态扫描守护，新增写接口漏注解会直接测试失败（见 2.1.4）                                                                      |
+
+
+
 
 ### 关键链路（已通过实际接口冒烟验证）
 
@@ -350,25 +433,31 @@ npm run dev          # http://localhost:5173 ，/api 已代理到 8080
 
 ---
 
+
+
 ## 4. 相对文档的简化点与演进路径
 
-| 简化 | 原因 | 演进 |
-|---|---|---|
-| 单体而非多服务 | 文档允许的渐进式方案，减少运维与联调成本 | 按 `modules/*` 拆包 ⇒ 独立工程，网关前置 |
-| session / 热点缓存未上 Redis，MQ 未引入 | 首期无跨实例共享状态；支付事件同步事务内处理。限流已提供 Redis 后端（`app.rate-limit.backend=redis`），单机默认走进程内桶 | 会话与热点缓存接 Redis；RocketMQ 承载支付成功事件 → 权益异步发放 |
-| RBAC 用 `sys_user.role_code` 单角色 | 首期角色只有平台管理员 / 机构管理员 / 考生三种，够用 | 增加 `sys_role`、`sys_user_role`、`sys_role_permission`，接口层无需改动 |
-| 退款仅支持整单全额 | 首期「整单退款 + 未使用权益作废」已闭环 | 按订单明细拆单、部分退款、退款回调与对账 |
-| 消息真实通道未接 | 首期用本地模拟通道，接口契约与真实一致 | `app.message.mock=false` 时缺少 `MessageChannel` 实现会直接启动失败，避免线上误用模拟通道 |
-| 课程仅支持图文课时 | 未接入点播平台与防盗链 | `course_lesson.video_url` 已预留，接入时补签名播放地址 |
-| 批量授权按组织维度发放，未接入采购单对账 | 首期以「批次号 + 审计日志」追溯 | 增加采购单实体，批次与订单/合同关联 |
-| 机构侧无「组织级数据可见范围」控制 | 机构门户只做「看自己机构 + 给自己的人发权益」，机构成员的业务数据仍在租户内可见 | 数据可见范围由角色 + 组织双维度控制 |
-| 业务时区固定 Asia/Shanghai，`DATETIME` 存储 | 国内单区域业务，降低复杂度 | 全链路改 UTC + 前端按用户时区渲染 |
-| 规则组卷未支持知识点范围与难度配比 | 首期按题型 + 可选难度抽题已够用 | 规则表增加 `knowledge_point_id` 与按比例抽题算法 |
-| 消息队列/outbox 未落库 | 支付与权益同一事务，无跨服务一致性问题 | 拆服务后必须引入本地消息表 + 重试补偿 |
-| 定时任务以平台租户上下文运行 | 单租户部署 | 多租户部署时按租户遍历执行 |
-| 判分仅客观题 | 主观题阅卷属 P1 | 增加 `REVIEWING` 分支、人工阅卷与成绩更正留痕 |
+
+| 简化                                 | 原因                                                                              | 演进                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 单体而非多服务                            | 文档允许的渐进式方案，减少运维与联调成本                                                            | 按 `modules/*` 拆包 ⇒ 独立工程，网关前置                                       |
+| session / 热点缓存未上 Redis，MQ 未引入      | 首期无跨实例共享状态；支付事件同步事务内处理。限流已提供 Redis 后端（`app.rate-limit.backend=redis`），单机默认走进程内桶 | 会话与热点缓存接 Redis；RocketMQ 承载支付成功事件 → 权益异步发放                          |
+| RBAC 用 `sys_user.role_code` 单角色    | 首期角色只有平台管理员 / 机构管理员 / 考生三种，够用                                                   | 增加 `sys_role`、`sys_user_role`、`sys_role_permission`，接口层无需改动        |
+| 退款仅支持整单全额                          | 首期「整单退款 + 未使用权益作废」已闭环                                                           | 按订单明细拆单、部分退款、退款回调与对账                                               |
+| 消息真实通道未接                           | 首期用本地模拟通道，接口契约与真实一致                                                             | `app.message.mock=false` 时缺少 `MessageChannel` 实现会直接启动失败，避免线上误用模拟通道 |
+| 课程仅支持图文课时                          | 未接入点播平台与防盗链                                                                     | `course_lesson.video_url` 已预留，接入时补签名播放地址                           |
+| 批量授权按组织维度发放，未接入采购单对账               | 首期以「批次号 + 审计日志」追溯                                                               | 增加采购单实体，批次与订单/合同关联                                                 |
+| 机构侧无「组织级数据可见范围」控制                  | 机构门户只做「看自己机构 + 给自己的人发权益」，机构成员的业务数据仍在租户内可见                                       | 数据可见范围由角色 + 组织双维度控制                                                |
+| 业务时区固定 Asia/Shanghai，`DATETIME` 存储 | 国内单区域业务，降低复杂度                                                                   | 全链路改 UTC + 前端按用户时区渲染                                               |
+| 规则组卷未支持知识点范围与难度配比                  | 首期按题型 + 可选难度抽题已够用                                                               | 规则表增加 `knowledge_point_id` 与按比例抽题算法                                |
+| 消息队列/outbox 未落库                    | 支付与权益同一事务，无跨服务一致性问题                                                             | 拆服务后必须引入本地消息表 + 重试补偿                                               |
+| 定时任务以平台租户上下文运行                     | 单租户部署                                                                           | 多租户部署时按租户遍历执行                                                      |
+| 判分仅客观题                             | 主观题阅卷属 P1                                                                       | 增加 `REVIEWING` 分支、人工阅卷与成绩更正留痕                                      |
+
 
 ---
+
+
 
 ## 5. 接口速查（Base URL `/api/v1`）
 
@@ -401,7 +490,7 @@ GET/POST/PUT/DELETE  /projects, /subjects, /knowledge-points
 GET/POST/PUT/DELETE  /questions  (+ PUT /questions/{id}/status, POST /questions/imports, GET /questions/imports/template)
 GET/POST/PUT/DELETE  /papers     (+ POST /papers/{id}/snapshots | preview, GET /papers/{id}/rules)
 GET/POST/PUT/DELETE  /sessions   (+ POST /sessions/{id}/publish|close)
-GET  /sessions/{id}/registrations    GET /sessions/{id}/attempts
+GET  /sessions/{id}/registrations    GET  /sessions/{id}/attempts
 POST /attempts/{id}/force-submit
 GET  /marking/queue                      GET  /attempts/{id}/marking      PUT /attempts/{id}/marking/{questionId}
 POST /attempts/{id}/marking/finish       POST /attempts/{id}/results/correct
@@ -453,10 +542,12 @@ GET  /orgs/{orgId}/quota-recharges
 
 两层的查询范围**故意不同**，这一点值得单独说明：
 
-| | 查询范围 | 原因 |
-|---|---|---|
-| 第一层（账户级） | 全量，但只发一条 `GROUP BY` 聚合 | `used_amount` 是累计值，加时间窗会把「窗口之前的消耗」全算成差异，产出一堆假告警；而「列账户 + 逐个 SUM」是 N+1（1000 个账户 = 1001 次查询） |
-| 第二层（批次级） | 最近 `recon-lookback-days`（默认 7 天） | 每行流水写入后不再变化，天然可增量核查。台账只增不删，全表扫迟早撞上 `default-statement-timeout`——**超时的对账等于没对账** |
+
+|          | 查询范围                             | 原因                                                                                        |
+| -------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| 第一层（账户级） | 全量，但只发一条 `GROUP BY` 聚合           | `used_amount` 是累计值，加时间窗会把「窗口之前的消耗」全算成差异，产出一堆假告警；而「列账户 + 逐个 SUM」是 N+1（1000 个账户 = 1001 次查询） |
+| 第二层（批次级） | 最近 `recon-lookback-days`（默认 7 天） | 每行流水写入后不再变化，天然可增量核查。台账只增不删，全表扫迟早撞上 `default-statement-timeout`——**超时的对账等于没对账**            |
+
 
 窗口必须大于任务周期：窗口小于执行间隔时，两次执行之间发生的发放就永远没人核。时间窗两侧留 1 小时余量，避免同事务内「先写台账、后写流水」的批次刚好卡在边界时被截断成假差异。
 
@@ -470,7 +561,53 @@ GET  /orgs/{orgId}/quota-recharges
 
 ---
 
-## 6. 数据模型
+
+
+## 6. 小程序端界面（考生端页面清单与改版记录）
+
+`miniprogram/` 共 18 个页面，全部完成了一轮视觉与交互改版。统一设计语言：**蓝紫渐变页头（`#1d4ed8 → #4f46e5 → #7c3aed`）+ 24rpx 圆角白卡轻投影 + 胶囊分段切换 + 渐变主按钮 + 底部安全区留白**。所有图标均为内联 SVG（base64 data URI），不依赖图片资源。
+
+| 页面 | 路径 | 主要能力 |
+| --- | --- | --- |
+| 首页 | `pages/index/index` | Hero + 快捷宫格 + 推荐项目卡 |
+| 项目详情 | `pages/project/detail` | 封面 Hero、考试安排、价格与权益卡、科目五宫格练习入口、知识点 chips、底部固定操作栏 |
+| 练习答题 | `pages/practice/practice` | 顶部状态条（模式/进度/模拟剩余时间）、收藏本题、判分结果卡、离线答案队列 |
+| 学习记录 | `pages/practice/history` | 渐变统计头（练习次数/累计答题/正确率）、按日期分组（今天/昨天/日期）、正确率进度条、按科目筛选 chips、分页加载 |
+| 考试中心 | `pages/exam/list` | 场次卡（考试时间/报名截止/时长三行）、报名状态徽标、准考证号 |
+| 答题中 | `pages/exam/taking` | 吸顶信息条 + 题号导航、红色倒计时胶囊、底部固定上一题/下一题/交卷 |
+| 成绩单 | `pages/exam/result` | Hero 得分卡（得分率进度条、场次排名）、全部/仅错题筛选、逐题判定与解析、底部固定操作栏 |
+| 课程列表 / 详情 | `pages/course/list`、`pages/course/detail` | 课程卡、课时目录（试看/未解锁/已完成）、标记已学完 |
+| 商城 | `pages/mall/index` | 领券横幅、商品卡（价格 / 划线原价 / 立即购买） |
+| 我的 | `pages/my/index` | 渐变头部 + 上浮统计卡（考试/错题/收藏 99+/消息/权益）、继续练习进度卡、功能菜单组、权益卡、考试记录 |
+| 公告 | `pages/notice/index` | 置顶徽标、展开收起与箭头旋转动效 |
+| 错题本 | `pages/wrong/index` | 来源/科目双维筛选、答案与解析展开、重做此题（本地判分） |
+| 收藏 | `pages/favorite/index` | 展开查看正确答案与解析、重做此题、取消收藏 |
+| 消息 | `pages/message/index` | 未读红点 + 左侧蓝条、全部已读、分页 |
+| 订单 | `pages/order/index` | 订单 / 退款双段切换、支付与退款入口 |
+| 优惠券 | `pages/coupon/index` | 票券造型（两侧圆缺口 + 虚线撕口）、领券中心 / 我的券 |
+| 密码 | `pages/password/index` | 账号密码设置表单 |
+
+### 6.1 「我的」页的权益与考试记录（两块重点）
+
+这两块的原始形态是「后端枚举直出」：权益卡显示 `entitlementType`、`status` 原值与订单号，考生看不懂；考试记录把所有历史全铺在页面上，且得分藏在文案里。
+
+现在的处理：
+
+- **权益卡**改为三栏——左侧类型图标块（会/题/课/考，按类型配色）、中间中文类型名 + 状态胶囊（生效中/已过期）+ 来源订单与格式化有效期、右侧「剩余额度」数字块。类型与状态在 `my/index.js` 的 `mapEntitlement()` 里统一翻译（`MEMBER/QUESTION_BANK/COURSE/EXAM`、`ACTIVE/EXPIRED/USED_UP`），未知枚举值原样回显兜底，不再出现空白。整卡可点直达商城续购；区块头另有「去开通 ›」，空态给引导按钮。
+- **考试记录**只渲染最近 3 条（`latestAttempts`），左侧得分方块把分数前置（进行中显示 `--`），右侧「查看 ›」胶囊可直接进成绩页；区块头「全部 N 条 ›」跳考试中心，空态给「去考试中心」按钮。
+
+### 6.2 本轮修复的两处功能缺陷（不只是样式）
+
+| 缺陷 | 根因 | 修复 |
+| --- | --- | --- |
+| 错题本「重做此题」选对也判错 | 标准答案取自练习详情接口 `GET /questions/{id}`，而后端 `QuestionView` **按设计不返回答案**，`answer` 恒为空数组，判分两边永远不相等 | 标准答案改从错题列表行的 `correctAnswer` 反查；比较前统一 `trim + toUpperCase` 归一；答案缺失时显式提示「无法判分」，不再静默判错 |
+| 收藏题「点击无反应」 | 收藏卡只有「取消收藏」一个动作，没有查看答案/解析或重做的入口；且后端 `pageFavorites` 的 SQL 未返回答案与解析字段 | 后端补 `q.difficulty` / `q.answer_json` / `q.analysis` 三列；前端收藏卡支持展开答案与解析、重做此题（同款本地判分）、取消收藏（改 `catchtap` 防误触） |
+
+修复后 `mvn test` 仍为 `Tests run: 250, Failures: 0, Errors: 0, Skipped: 8`。
+
+---
+
+## 7. 数据模型
 
 DDL 见 `backend/src/main/resources/db/migration/V1__baseline.sql`（Flyway 版本化迁移，表名与字段严格对齐文档第 5、6 节）：
 
@@ -490,81 +627,103 @@ DDL 见 `backend/src/main/resources/db/migration/V1__baseline.sql`（Flyway 版�
 
 ---
 
-## 7. 自测
 
-### 7.1 自动化测试（159 个用例，`mvn test` 全绿）
+
+## 8. 自测
+
+
+
+### 8.1 自动化测试（179 个用例，`mvn test` 全绿）
 
 ```bash
 cd backend && mvn test
 ```
 
-| 测试类 | 覆盖点 |
-|---|---|
-| `AuthAndTenantTest`（6） | 管理员登录与资料、未登录拦截、密码错误不泄漏账号存在性、考生越权访问后台、**租户数据隔离 + 账号名按租户隔离**、未知租户拒绝 |
-| `ExamFlowTest`（3） | 报名/开考幂等、答案版本控制（旧请求不覆盖）、恢复考试以服务端为准、交卷幂等、快照判分、交卷后禁止作答、未报名不能开考、重复发布拦截、**到期自动收卷** |
-| `EssayMarkingTest`（1） | 含主观题交卷进 `REVIEWING`、客观题先判分且明细不可见、未评分不得结案、超分拦截、打分后发布、**成绩更正留痕与版本号递增** |
-| `RulePaperTest`（4） | 规则组卷按题型抽题、无重复题、总分符合规则、题库不足报错、重复规则拦截、发布场次后快照固定 |
-| `CourseFlowTest`（4） | 免费课程直接可看、**付费课程未购买时锁定内容（含直接请求课时接口）**、购买后经支付回调发放权益解锁、学习进度以较大值合并不回退、考生只见已发布课程 |
-| `MessageFlowTest`（4） | 未授权任务置 `SKIPPED` 且不影响报名、补授权后可重发并扣减次数、已发送不可重发、重复业务事件不重复建任务、支付与成绩消息各自独立、管理端按状态/场景筛选 |
-| `OrgGrantTest`（4） | **按组织维度批量发放权益**、重复提交按批次号叠加而非吞掉、指定成员时忽略非本组织成员、停用组织/无成员组织拒绝授权、成员移出后不再被授权、重复加入组织幂等 |
-| `ExportFlowTest`（4） | **异步导出：提交 → 轮询 → 下载 CSV**、BOM 与表头正确、按场次过滤、非法类型拒绝、任务只对提交人可见、跨租户无法下载他人产物 |
-| `TradeFlowTest`（2） | 客户端改价无效、回调验签失败/金额篡改被拒、重复回调只发一次权益 |
-| `RefundFlowTest`（2） | 退款申请与重复申请拦截、**审核通过后订单退款 + 剩余权益作废**、重复审核幂等、驳回后订单恢复可用、未支付订单不可退款、权益核销幂等与不足拦截 |
-| `AnswerJudgeTest`（6） | 判分规则：顺序无关、大小写与空格归一、漏选/多选不得分、空答案不得分 |
-| `ReconciliationTest`（6） | 对账按 biz_id 精确检出五类不一致、宽限期内的新订单不误报、重复对账保留历史、**异常处置闭环**（标记已处理带处置人/说明、重复处置拦截、非法状态拦截、审计留痕）、**检出即进指标** |
-| `QuestionImportTest`（5） | 题目批量导入：部分行失败整批回滚、成功批次写入审计 |
-| `TimeoutProtectionTest`（3） | 语句超时 / 取连接超时被归类为可重试错误，而非「服务开小差」 |
-| `PrometheusMetricsTest`（2） | 抓取端点的真实输出与告警规则里的指标名、标签一致 |
-| `AuditLogQueryTest`（5） | **审计从「只能写」变成「能查」**：按动作精确 / 操作人模糊 / 日期区间过滤都能命中，考生访问返回 `AUTH_FORBIDDEN` |
-| `JobHealthRecorderTest`（5） | **定时任务健康**：成功即清零连续失败、失败累加、从未成功时 staleness 随进程运行时长增长、未登记的任务上报时不抛异常 |
-| `ReconAnomalyPoolTest`（4） | **跨轮次待处置池**：处置后从「待处置」消失并出现在「已处理」、按业务类型过滤不混入、导出 CSV 带 BOM 与表头、空池只输出表头 |
-| `ExportRateLimitTest`（1） | 导出 / 下载走独立更严配额：配额内可下载，超限返回 `RATE_LIMITED` + `Retry-After`，且该路径不会被 `default` 规则吞掉 |
-| `AuditArchiveTest`（3） | **审计保留期**：超期记录写进 CSV 后才从库中删除、近期记录一条不少、跨租户旧记录也被归档、开关关闭或保留期为 0 时整体跳过 |
-| `OrgPortalTest`（3） | **机构侧门户**：机构管理员能看到自己所属机构与成员、自助发放留审计（动作码与平台代发区分）、请求体里的机构 ID 被丢弃、访问别人家机构返回 `ORG_NOT_MEMBER`、考生被拒、停用机构拒绝服务 |
-| `OrgQuotaTest`（7） | **机构额度池**：充值 100、发 3 人后余额 97；余额不足整批拒绝且一分不扣；没有额度账户的机构仍按旧逻辑发放；**过期账户拒绝发放且不退化成「不限额」**；续充只能把有效期往后推（更早日期直接拒）；**充值落流水且流水合计等于账户累计**；**过期报表列出作废余额、长期有效账户不进报表** |
-| `OrgQuotaReconTest`（10） | **额度对账两层**：发放后账户已用等于流水净额；流水净额扣掉退款（扣 6 退 2 → 净 4 才算消耗）；账户余额被手工改动时检出差异并给出 `diff`；**删掉一条入账后台张级对账检出「钱扣了但权益没到账」，而账户级对此完全无感**；**时间窗边界**（同批数据 7 天窗口看不见、60 天能抓到）；**余量有界**（台账早 30 分钟能匹配、早 90 分钟仍报差异）；账户级不加时间窗；对账报告接口回显扫描窗口；全量核对能回答「是不是历史上一直有」 |
-| `OrgQuotaReconJobTest`（2） | **对账告警不能只进日志**：两层一致时连续失败清零；账户被改坏时**连续失败次数递增**（能被 `app.job.consecutive.failures` 抓到），而不是打一行 `log.warn` 就过去 |
-| `MessageTemplateTest`（5） | **消息模板可配置**：运营改文案后渲染立刻生效、未配置编码用代码兜底、模板停用回退兜底、未知占位符原样保留便于定位写错键、**缓存的是模板原文（同一模板对不同 payload 渲染各自内容）**、改文案留审计 |
-| `QuestionImportTemplateTest`（1） | **导入模板自证一致**：下载的模板原样喂回导入接口能成功（模板与解析器不漂移），表头带 BOM 可被 Excel 直接打开 |
+
+| 测试类                             | 覆盖点                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AuthAndTenantTest`（6）          | 管理员登录与资料、未登录拦截、密码错误不泄漏账号存在性、考生越权访问后台、**租户数据隔离 + 账号名按租户隔离**、未知租户拒绝                                                                                                                                                                    |
+| `ExamFlowTest`（3）               | 报名/开考幂等、答案版本控制（旧请求不覆盖）、恢复考试以服务端为准、交卷幂等、快照判分、交卷后禁止作答、未报名不能开考、重复发布拦截、**到期自动收卷**                                                                                                                                                        |
+| `EssayMarkingTest`（1）           | 含主观题交卷进 `REVIEWING`、客观题先判分且明细不可见、未评分不得结案、超分拦截、打分后发布、**成绩更正留痕与版本号递增**                                                                                                                                                                    |
+| `RulePaperTest`（4）              | 规则组卷按题型抽题、无重复题、总分符合规则、题库不足报错、重复规则拦截、发布场次后快照固定                                                                                                                                                                                        |
+| `CourseFlowTest`（4）             | 免费课程直接可看、**付费课程未购买时锁定内容（含直接请求课时接口）**、购买后经支付回调发放权益解锁、学习进度以较大值合并不回退、考生只见已发布课程                                                                                                                                                          |
+| `MessageFlowTest`（4）            | 未授权任务置 `SKIPPED` 且不影响报名、补授权后可重发并扣减次数、已发送不可重发、重复业务事件不重复建任务、支付与成绩消息各自独立、管理端按状态/场景筛选                                                                                                                                                    |
+| `OrgGrantTest`（4）               | **按组织维度批量发放权益**、重复提交按批次号叠加而非吞掉、指定成员时忽略非本组织成员、停用组织/无成员组织拒绝授权、成员移出后不再被授权、重复加入组织幂等                                                                                                                                                      |
+| `ExportFlowTest`（4）             | **异步导出：提交 → 轮询 → 下载 CSV**、BOM 与表头正确、按场次过滤、非法类型拒绝、任务只对提交人可见、跨租户无法下载他人产物                                                                                                                                                               |
+| `TradeFlowTest`（2）              | 客户端改价无效、回调验签失败/金额篡改被拒、重复回调只发一次权益                                                                                                                                                                                                     |
+| `WechatPayCryptTest`（12）        | **微信支付 v3 对接的纯逻辑层**（自建密钥对，不连网）：按官方规则签名能验过、改一个字节就验不过、超窗时间戳被拒（防重放）、AAD 篡改导致解密失败、v3 回调「验签→解密→归属校验」全链路、**他商户的回调被拒**（验签只证明来自微信，不证明是我们的单）、未知平台证书显式失败而非静默放行、拉证书失败被显式上报 |
+| `RefundFlowTest`（2）             | 退款申请与重复申请拦截、**审核通过后订单退款 + 剩余权益作废**、重复审核幂等、驳回后订单恢复可用、未支付订单不可退款、权益核销幂等与不足拦截                                                                                                                                                            |
+| `AnswerJudgeTest`（6）            | 判分规则：顺序无关、大小写与空格归一、漏选/多选不得分、空答案不得分                                                                                                                                                                                                   |
+| `ReconciliationTest`（6）         | 对账按 biz_id 精确检出五类不一致、宽限期内的新订单不误报、重复对账保留历史、**异常处置闭环**（标记已处理带处置人/说明、重复处置拦截、非法状态拦截、审计留痕）、**检出即进指标**                                                                                                                                     |
+| `QuestionImportTest`（5）         | 题目批量导入：部分行失败整批回滚、成功批次写入审计                                                                                                                                                                                                            |
+| `TimeoutProtectionTest`（3）      | 语句超时 / 取连接超时被归类为可重试错误，而非「服务开小差」                                                                                                                                                                                                      |
+| `PrometheusMetricsTest`（2）      | 抓取端点的真实输出与告警规则里的指标名、标签一致                                                                                                                                                                                                             |
+| `AuditLogQueryTest`（5）          | **审计从「只能写」变成「能查」**：按动作精确 / 操作人模糊 / 日期区间过滤都能命中，考生访问返回 `AUTH_FORBIDDEN`                                                                                                                                                                |
+| `JobHealthRecorderTest`（5）      | **定时任务健康**：成功即清零连续失败、失败累加、从未成功时 staleness 随进程运行时长增长、未登记的任务上报时不抛异常                                                                                                                                                                    |
+| `ReconAnomalyPoolTest`（4）       | **跨轮次待处置池**：处置后从「待处置」消失并出现在「已处理」、按业务类型过滤不混入、导出 CSV 带 BOM 与表头、空池只输出表头                                                                                                                                                                 |
+| `ExportRateLimitTest`（1）        | 导出 / 下载走独立更严配额：配额内可下载，超限返回 `RATE_LIMITED` + `Retry-After`，且该路径不会被 `default` 规则吞掉                                                                                                                                                     |
+| `AuditArchiveTest`（3）           | **审计保留期**：超期记录写进 CSV 后才从库中删除、近期记录一条不少、跨租户旧记录也被归档、开关关闭或保留期为 0 时整体跳过                                                                                                                                                                   |
+| `OrgPortalTest`（3）              | **机构侧门户**：机构管理员能看到自己所属机构与成员、自助发放留审计（动作码与平台代发区分）、请求体里的机构 ID 被丢弃、访问别人家机构返回 `ORG_NOT_MEMBER`、考生被拒、停用机构拒绝服务                                                                                                                              |
+| `OrgQuotaTest`（7）               | **机构额度池**：充值 100、发 3 人后余额 97；余额不足整批拒绝且一分不扣；没有额度账户的机构仍按旧逻辑发放；**过期账户拒绝发放且不退化成「不限额」**；续充只能把有效期往后推（更早日期直接拒）；**充值落流水且流水合计等于账户累计**；**过期报表列出作废余额、长期有效账户不进报表**                                                                               |
+| `OrgQuotaReconTest`（10）         | **额度对账两层**：发放后账户已用等于流水净额；流水净额扣掉退款（扣 6 退 2 → 净 4 才算消耗）；账户余额被手工改动时检出差异并给出 `diff`；**删掉一条入账后台张级对账检出「钱扣了但权益没到账」，而账户级对此完全无感**；**时间窗边界**（同批数据 7 天窗口看不见、60 天能抓到）；**余量有界**（台账早 30 分钟能匹配、早 90 分钟仍报差异）；账户级不加时间窗；对账报告接口回显扫描窗口；全量核对能回答「是不是历史上一直有」 |
+| `OrgQuotaReconJobTest`（2）       | **对账告警不能只进日志**：两层一致时连续失败清零；账户被改坏时**连续失败次数递增**（能被 `app.job.consecutive.failures` 抓到），而不是打一行 `log.warn` 就过去                                                                                                                            |
+| `MessageTemplateTest`（5）        | **消息模板可配置**：运营改文案后渲染立刻生效、未配置编码用代码兜底、模板停用回退兜底、未知占位符原样保留便于定位写错键、**缓存的是模板原文（同一模板对不同 payload 渲染各自内容）**、改文案留审计                                                                                                                            |
+| `QuestionImportTemplateTest`（1） | **导入模板自证一致**：下载的模板原样喂回导入接口能成功（模板与解析器不漂移），表头带 BOM 可被 Excel 直接打开                                                                                                                                                                       |
+
 
 均为真实启动 Web 容器的接口级测试（随机端口 + H2），覆盖 Servlet → 拦截器 → 数据库全链路。
 
 **每个测试方法前都会重建数据库**（`DROP ALL OBJECTS` → 重跑 Flyway → 重新初始化演示数据）。H2 连接串带 `DB_CLOSE_DELAY=-1`，被缓存的多个 Spring 上下文共用同一个库；不重建的话，「断言总数」「断言列表第一条」这类用例能不能绿取决于执行顺序——单独跑绿、全套跑红，或者反过来。代价是「跨方法共享数据」的写法不再被纵容，这正是要消除的耦合。
 
-**Redis 原子性验证（可选，默认跳过）**：`RedisRateLimiterIntegrationTest` 用真实 Redis 验证打桩测不出的四件事——并发取令牌不超发、按服务端时间补充、桶 key 的 TTL、多实例共享同一 key 时配额不按实例数放大。本机/CI 未提供 Redis 时自动 `skipped`（不红构建），配置后自动生效：
+**Redis 原子性验证（CI 必跑，本地可选）**：`RedisRateLimiterIntegrationTest`（5 个用例）用真实 Redis 验证打桩测不出的四件事——并发取令牌不超发、按服务端时间补充、桶 key 的 TTL、多实例共享同一 key 时配额不按实例数放大。连不上 Redis 时自动 `skipped`（不红构建），配置后自动生效：
 
 ```bash
 cd backend
 APP_TEST_REDIS_HOST=127.0.0.1 APP_TEST_REDIS_PORT=6379 \
-APP_TEST_REDIS_PASSWORD=<密码> APP_TEST_REDIS_DB=15 \
+APP_TEST_REDIS_PASSWORD=<密码，无密码则不填> APP_TEST_REDIS_DB=15 \
 mvn test -Dtest=RedisRateLimiterIntegrationTest
 ```
 
-不填密码就连不上（会 skip），所以「构建绿」不代表原子性已验证——这正是把它做成可选的原因：常规 CI 不引入中间件依赖，但发版前的 Redis 环境必须跑过一次。
+`-Dtest=` 单跑只能说明「你本机连上了」；**CI 里这个 Job 会起 `redis:7-alpine` service 并要求这 5 条用例的 `skipped="0"`**——否则「构建绿」只代表这四条性质从未被验证过。第一次真正跑起来时就抓到两条一直红的用例，见 §8 说明。
 
-### 7.2 前端接口契约校验（无需 Node）
+### 8.2 前端契约与一致性校验（无需 Node / JDK）
 
-本机未安装 Node 时，可用脚本静态校验「前端声明的每个接口路径是否都能在后端 Controller 中找到映射」，先排除路径写错导致的批量 404：
+两个纯静态扫描，先排除「路径写错导致批量 404」和「DTO 字段漂移导致字段恒为 undefined」这类只能靠点页面才发现的问题：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-api-contract.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-frontend-consistency.ps1
 ```
 
-输出示例（失败时退出码为 1，可直接接入 CI）：
-
-```text
-backend mappings: 99
-admin-web calls: 17, matched: 17, unmatched: 0
-miniprogram calls: 12, matched: 12, unmatched: 0
-```
-
-Linux / macOS 可用等价脚本（依赖 GNU `grep -P`，即 Linux 环境或 `brew install grep`）：
+Linux / macOS / Git Bash 用等价的 bash 版本（CI 就跑这两个，不依赖 `pwsh`）：
 
 ```bash
 bash tools/check-api-contract.sh
+bash tools/check-frontend-consistency.sh
 ```
 
-### 7.3 手工回归建议（前端联调时）
+`check-api-contract` 输出示例（失败时退出码为 1）：
+
+```text
+backend mappings: 120
+admin-web calls: 68, matched: 68, unmatched: 0
+miniprogram calls: 22, matched: 22, unmatched: 0
+```
+
+注意这两个数字曾经是 `26` 和 `12`：那时 PowerShell 版正则写在双引号字符串里，字符类中的反引号被解析掉，**所有用模板字符串 `` url: `/x/${id}` `` 声明的接口都没被扫到**（68 条里漏了 42 条）。所以「unmatched 0」曾经只是「没检查」，不是「检查过」。两个实现现在都认三种引号，并把占位符统一归一成 `{p}`（后端 `{attemptId}` 与前端 `${attemptId}` 属同一结构，参数名不同不算契约漂移）。
+
+`check-frontend-consistency` 抓三类 `vue-tsc` 抓不到、运行时才炸的问题：页面调用了不存在的 `xxxApi.method`、后端 DTO 字段与前端 interface 漂移（前端多出的字段恒为 `undefined`）、菜单项指向不存在的路由。输出示例：
+
+```text
+api 对象: 16 个（auditLogApi, authApi, courseApi, ... userApi）
+后端 DTO record: 50 个
+视图: 16 个，路由条目: 15 个
+FRONTEND CONSISTENCY OK
+```
+
+
+
+### 8.3 手工回归建议（前端联调时）
 
 ```text
 1. 小程序：练习 → 断网 → 恢复后可继续作答，答案与服务端一致
@@ -576,17 +735,23 @@ bash tools/check-api-contract.sh
 7. 支付：真实商户环境下的回调验签与对账
 ```
 
-### 7.4 静态核对已发现并修复的前端缺陷
+
+
+### 8.4 静态核对已发现并修复的前端缺陷
 
 前端未实机运行前，通过读代码 + 后端 DTO 对照发现以下问题（均已修复）：
 
-| 问题 | 影响 | 修复 |
-|---|---|---|
-| 小程序考试页用 `question.id`，后端返回 `questionId` | 答题保存时 `questionId` 为 `undefined`，全部答案存不上 | 数据入口统一映射为 `id`，保留 `questionId` |
-| 小程序把整个 `attempt` 对象塞进 `data-attempt` | 小程序 `dataset` 不支持对象，拿到字符串导致继续考试/查看成绩分支失效 | 改传 `data-status` / `data-attempt-id` 基本类型 |
-| 管理端 `request()` 统一拆包，下载接口 `responseType: 'blob'` | 报表下载拿到 `undefined` | 二进制响应跳过拆包；失败时把 Blob 读回解析错误码 |
 
-### 7.5 性能基线（答题保存 / 交卷）
+| 问题                                               | 影响                                       | 修复                                        |
+| ------------------------------------------------ | ---------------------------------------- | ----------------------------------------- |
+| 小程序考试页用 `question.id`，后端返回 `questionId`          | 答题保存时 `questionId` 为 `undefined`，全部答案存不上 | 数据入口统一映射为 `id`，保留 `questionId`            |
+| 小程序把整个 `attempt` 对象塞进 `data-attempt`             | 小程序 `dataset` 不支持对象，拿到字符串导致继续考试/查看成绩分支失效 | 改传 `data-status` / `data-attempt-id` 基本类型 |
+| 管理端 `request()` 统一拆包，下载接口 `responseType: 'blob'` | 报表下载拿到 `undefined`                       | 二进制响应跳过拆包；失败时把 Blob 读回解析错误码               |
+
+
+
+
+### 8.5 性能基线（答题保存 / 交卷）
 
 集中开考时压力集中在两个瞬间：几百人同时刷新答案、整点同时交卷。它们慢下来不是「页面转圈」——答题保存慢会让考生以为答案丢了反复重试，交卷慢会把收卷队列堆到超时。
 
@@ -598,35 +763,72 @@ mvn test -Dtest=LoadBaselineTest "-Dload.test.enabled=true" \
 pwsh tools/load-baseline.ps1 -Token "<token>" -AttemptId 123 -QuestionId 456 -Threads 16 -Total 400
 ```
 
-默认**不跑**：压测数字依赖机器，放进常规构建只让构建变慢且指标无意义。同机同参数的两次结果才可比较，判断标准见 [`doc/06_性能基线与压测方法.md`](doc/06_性能基线与压测方法.md)（含本机实测基线表、p99 余量、以及「H2 上交卷会被串行化，不能据此承诺对外耗时」的说明）。
+默认**不跑**：压测数字依赖机器，放进常规构建只让构建变慢且指标无意义。同机同参数的两次结果才可比较，判断标准见 `[doc/06_性能基线与压测方法.md](doc/06_性能基线与压测方法.md)`（含本机实测基线表、p99 余量、以及「H2 上交卷会被串行化，不能据此承诺对外耗时」的说明）。
 
-### 7.6 MySQL 8 迁移演练
+### 8.6 MySQL 8 迁移演练
 
 日常测试的 H2 兼容模式抹掉的差异恰好是生产首次迁移最容易翻车的地方，所以迁移脚本必须在真 MySQL 上先跑过：
 
 ```bash
-bash tools/check-mysql-migration.sh       # Linux / macOS
-pwsh tools/check-mysql-migration.ps1      # Windows（需 Docker）
+bash tools/check-mysql-migration.sh                        # Linux / macOS
+powershell -File tools/check-mysql-migration.ps1           # Windows（PowerShell 5.1+，需 Docker）
 ```
 
-CI 每次 PR 都跑同一件事（`MySQL 8 · flyway migrate` job），并断言「重复 `migrate` 是无操作」。没有 Docker 时脚本直接报错退出，不做静默跳过——跳过会让人误以为演练过了。
+CI 每次 PR 都跑同一件事（`mysql-migration` job，直接用 `mvn` 命令，不经过这两个脚本），并断言「重复 `migrate` 是无操作」。没有 Docker 时脚本直接报错退出，不做静默跳过——跳过会让人误以为演练过了。
+
+> 这个脚本此前是**必然失败**的：参数用了「反引号 + LF」续行（PowerShell 5.1 不认），`docker run` 只收到 `run`；修掉后又暴露出两个问题——`$ErrorActionPreference='Stop'` 下 `docker logs` 的 stderr 被当成终止性错误，以及含 `&` 的 JDBC URL 被 `cmd` 当成命令分隔符。三处都已修（详见 `doc/07` 第 2.2 节）。
 
 ---
 
-## 8. CI 流水线
 
-`.github/workflows/ci.yml`，共四个 Job，全部为阻断项：
 
-| Job | 内容 | 失败是否阻断 |
-|---|---|---|
-| `backend-test` | `mvn -B -ntp test`，跑全部 159 个用例（H2 内存库）；**并起一个真实 Redis**（`redis:7-alpine` service），让「只有真 Redis 才能验证」的令牌桶行为（Lua 原子性、补充节奏、TTL、多实例共享）进构建门禁 | 是（阻断合并） |
-| `api-contract` | 两个纯静态扫描（不依赖 Node）：`check-api-contract.ps1` 校验前端声明的路径都能在后端找到映射；`check-frontend-consistency.ps1` 校验页面调用的 api 方法存在、后端 DTO 字段与前端 interface 不漂移、路由与菜单一致 | 是（阻断合并） |
-| `mysql-migration` | 起 `mysql:8.0` service，跑 `MySqlMigrationSmokeTest`：全部迁移脚本（V1..V10）在真 MySQL 上迁移、重复迁移为无操作、关键表与索引（含 V10 的对账索引）真实存在 | 是（阻断合并） |
-| `admin-web-build` | `npm install && npm run build`（`vue-tsc` 类型检查 + Vite 构建） | 是（阻断合并） |
+### 8.7 小程序离线答题队列单测
+
+`miniprogram/utils/answer-queue.js` 的语义（按题去重、200 条上限、按场次隔离、失败停止 / 业务错误出队、冲突回调）只依赖 `wx.getStorageSync` / `wx.setStorageSync`，用最小桩就能在 Node 里跑，不需要微信开发者工具、也不需要装任何依赖：
+
+```bash
+node --test tools/miniprogram-tests/
+```
+
+12 个用例，覆盖 `doc/08` 清单里能自动判定的部分（MP-01/02/03/04/06/08/09/10）。真机只剩「网络事件是否触发」「toast 是否可见」这类必须在真实运行时观察的项。
+
+---
+
+
+
+## 9. CI 流水线
+
+`.github/workflows/ci.yml`，共五个 Job，全部为阻断项：
+
+
+| Job                 | 内容                                                                                                                                                 | 失败是否阻断  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `backend-test`      | `mvn -B -ntp test`，跑全部 171 个用例（H2 内存库；本机无 Redis/MySQL 时 `Skipped: 8`，CI 起 Redis 后为 `Skipped: 3`）；**并起一个真实 Redis**（`redis:7-alpine` service），让「只有真 Redis 才能验证」的令牌桶行为（Lua 原子性、补充节奏、TTL、多实例共享）进构建门禁 | 是（阻断合并） |
+| `api-contract`      | 两个纯静态扫描（不依赖 Node / JDK / pwsh）：`check-api-contract.sh` 校验前端声明的路径都能在后端找到映射；`check-frontend-consistency.sh` 校验页面调用的 api 方法存在、后端 DTO 字段与前端 interface 不漂移、路由与菜单一致 | 是（阻断合并） |
+| `miniprogram-test`  | `node --test tools/miniprogram-tests/`，不装任何依赖（Node 内置 test runner + 最小 `wx` 桩）：离线答题队列的按题去重、200 条上限、按场次隔离、失败停止 / 业务错误出队、冲突回调                       | 是（阻断合并） |
+| `mysql-migration`   | 起 `mysql:8.0` service，跑 `MySqlMigrationSmokeTest`：全部迁移脚本（V1..V10）在真 MySQL 上迁移、重复迁移为无操作、关键表与索引（含 V10 的对账索引）真实存在                                     | 是（阻断合并） |
+| `admin-web-build`   | `npm ci && npm run build`（`vue-tsc` 类型检查 + Vite 构建）                                                                                                | 是（阻断合并） |
+
 
 说明：
 
-- 前端构建**不再 `continue-on-error`**：类型错误会直接让运营后台打包失败，允许它「红着也能过」等于把构建门禁关掉了。仍建议提交 `package-lock.json` 以固定依赖版本。
-- `backend-test` 的 Redis service 是必须的：`RedisRateLimiterIntegrationTest` 连不上 Redis 时会 abort 成 skipped——看起来永远是绿的，但从未真跑过。CI 显式指向 service 容器后，这条「静默跳过」被消除。
+- **门禁断言的是「真的跑了」，不只是「没有报错」**：`backend-test` 与 `mysql-migration` 各有一段断言，检查对应 Surefire 报告里 `skipped="0"`。这两个用例类连不上中间件时会 abort 成 skipped，如果没有这道断言，「构建绿」只说明它们被跳过了。
+- 前端构建不 `continue-on-error`：类型错误会直接让运营后台打包失败，允许它「红着也能过」等于把构建门禁关掉了。`package-lock.json` 已提交，CI 用 `npm ci` 并按其缓存依赖，不再每次解析最新 minor 版本。
+- `api-contract` 跑 bash 版本而非 `pwsh` 版本：`pwsh` 不是 ubuntu runner 的硬保证，而这两个检查不需要任何运行时，少一个依赖就少一个「镜像变化导致 Job 挂掉」的来源。两个脚本的 PowerShell 版仍然保留给 Windows 本地使用。
+- `TZ` 显式设为 `Asia/Shanghai`（与 §4 的「业务时区固定」一致）。runner 默认 UTC，不显式对齐会让日期边界类断言在 CI 上换一种表现——那是环境差异不是缺陷。**代价**：CI 不覆盖「换成 UTC 部署会不会坏」，这条列在 `doc/07` 的已知盲区里。
 - 测试报告以 `surefire-reports` 附件形式保留 7 天，便于排查失败用例。
-- 触发条件：向 `main` / `master` / `develop` 推送或提 PR；同一分支的新推送会取消上一次未完成的运行。
+- 触发条件：向 `main` / `master` / `develop` 推送或提 PR（同一分支的新推送取消上一次未完成的运行），另支持 `workflow_dispatch` 手动触发——接入 workflow 本身时不必为了跑一次而提交空提交。
+
+### 9.1 首次真跑发现并修复的缺陷
+
+这四个 Job 第一次真正执行（本地等价预跑：Redis 6380 + MySQL 8 容器 + `npm ci`）时抓到 5 处真缺陷，全部是「平时被跳过 / 从未执行」掩盖的：
+
+| 位置 | 缺陷 | 后果 |
+| --- | --- | --- |
+| `RedisRateLimiterIntegrationTest.bucketKeyShouldCarryTtl` | 用 `limiter("it:ttl:")` 构造限流器（内部会再追加随机串），却断言固定 key `it:ttl:user:1` 的 TTL | 断言对象与真实 key 永远不是同一个，`getExpire` 恒为 `null` → 用例一直是红的 |
+| `RedisRateLimiterIntegrationTest.twoInstancesShouldShareQuota` | 两个「实例」各自传入前缀、各自被追加不同随机串，落在不同 key 上 | 测的不是「共享」而是「互不干扰」，容量 10 时放行 12 → 一直是红的 |
+| `MySqlMigrationSmokeTest` | 断言表名写成 `attempt`，实际迁移出来的是 `exam_attempt` | 迁移本身没问题，断言写错 → 用例一直是红的 |
+| `tools/check-mysql-migration.ps1` | 参数用「反引号 + LF」续行，而脚本是纯 LF 行尾 | Windows PowerShell 5.1 不认这种续行，`docker run` 只收到 `run` → 演练脚本直接报参数不足，从未跑成功过 |
+| `tools/check-mysql-migration.ps1` / `tools/load-baseline.ps1` | `$ErrorActionPreference='Stop'` 下执行 `docker logs`（stderr 有内容）、以及把含 `&` 的 JDBC URL 直接交给 `mvn.cmd` | 前者被当成终止性错误，后者被 cmd 当成命令分隔符 → 一个永远等不到 MySQL 就绪，一个报 `'allowPublicKeyRetrieval' 不是内部或外部命令` |
+
+修复后本地实测：`mvn test` → `Tests run: 179, Failures: 0, Errors: 0, Skipped: 8`（本机无 Redis/MySQL；CI 起 Redis 后为 `Skipped: 3`，网关断言的是对应用例 `skipped="0"`）；MySQL 8 演练 → `OK：全部迁移脚本在 MySQL 8 上迁移通过`；`npm ci && npm run build` → 通过；两个 bash 静态检查 → `unmatched: 0` / `FRONTEND CONSISTENCY OK`。

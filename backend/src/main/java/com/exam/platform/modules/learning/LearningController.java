@@ -36,6 +36,19 @@ public class LearningController {
         return Result.ok(learningService.get(id, UserContext.userId()));
     }
 
+    /** 学习记录：本人练习会话分页（小程序「学习记录」页用）。 */
+    @GetMapping("/practice/sessions")
+    public Result<com.exam.platform.common.api.PageResult<java.util.Map<String, Object>>> history(
+            com.exam.platform.common.api.PageQuery pageQuery) {
+        return Result.ok(learningService.history(UserContext.userId(), pageQuery));
+    }
+
+    /** 最近一次练习会话：断点续练入口（PRD 4.3），无记录时 data 为 null。 */
+    @GetMapping("/practice/sessions/recent")
+    public Result<PracticeStartResponse> recent(@RequestParam(required = false) Long subjectId) {
+        return Result.ok(learningService.recent(UserContext.userId(), subjectId));
+    }
+
     @PostMapping("/practice/sessions/{id}/answers")
     public Result<PracticeAnswerResult> answer(@PathVariable Long id,
                                                @RequestParam Long questionId,
@@ -44,7 +57,9 @@ public class LearningController {
     }
 
     @GetMapping("/wrong-questions")
-    public Result<List<WrongQuestionView>> wrongQuestions(@RequestParam(required = false) Long subjectId) {
-        return Result.ok(learningService.wrongQuestions(UserContext.userId(), subjectId));
+    public Result<List<WrongQuestionView>> wrongQuestions(
+            @RequestParam(required = false) Long subjectId,
+            @RequestParam(required = false) String source) {
+        return Result.ok(learningService.wrongQuestions(UserContext.userId(), subjectId, source));
     }
 }

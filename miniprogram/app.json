@@ -3,13 +3,21 @@
     "pages/index/index",
     "pages/project/detail",
     "pages/practice/practice",
+    "pages/practice/history",
     "pages/exam/list",
     "pages/exam/taking",
     "pages/exam/result",
     "pages/course/list",
     "pages/course/detail",
     "pages/mall/index",
-    "pages/my/index"
+    "pages/my/index",
+    "pages/notice/index",
+    "pages/wrong/index",
+    "pages/password/index",
+    "pages/coupon/index",
+    "pages/order/index",
+    "pages/favorite/index",
+    "pages/message/index"
   ],
   "window": {
     "backgroundTextStyle": "light",
@@ -19,15 +27,36 @@
     "backgroundColor": "#f5f7fa"
   },
   "tabBar": {
+    "custom": false,
     "color": "#8a94a6",
     "selectedColor": "#1d4ed8",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/exam/list", "text": "考试" },
-      { "pagePath": "pages/mall/index", "text": "商城" },
-      { "pagePath": "pages/my/index", "text": "我的" }
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "images/tab/tab-home.png",
+        "selectedIconPath": "images/tab/tab-home-active.png"
+      },
+      {
+        "pagePath": "pages/exam/list",
+        "text": "考试",
+        "iconPath": "images/tab/tab-exam.png",
+        "selectedIconPath": "images/tab/tab-exam-active.png"
+      },
+      {
+        "pagePath": "pages/mall/index",
+        "text": "商城",
+        "iconPath": "images/tab/tab-mall.png",
+        "selectedIconPath": "images/tab/tab-mall-active.png"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的",
+        "iconPath": "images/tab/tab-my.png",
+        "selectedIconPath": "images/tab/tab-my-active.png"
+      }
     ]
   },
   "style": "v2",

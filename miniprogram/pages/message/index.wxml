@@ -1,0 +1,23 @@
+<view class="page">
+  <view wx:if="{{unread > 0}}" class="mark-bar">
+    <view bindtap="markAllRead" class="mark-all">全部已读（{{unread}}）</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{list.length === 0}}" class="state-box">暂无消息</view>
+
+  <view wx:for="{{list}}" wx:key="id" data-index="{{index}}" bindtap="openMessage"
+        class="card msg-card {{item.read ? '' : 'unread'}}">
+    <view class="msg-head">
+      <view wx:if="{{!item.read}}" class="msg-dot"></view>
+      <view class="msg-title">{{item.title}}</view>
+      <view class="msg-time">{{item.at}}</view>
+    </view>
+    <view wx:if="{{item.expanded}}" class="msg-content">{{item.content}}</view>
+  </view>
+
+  <view wx:if="{{moreLoading}}" class="load-more">加载中…</view>
+  <view wx:if="{{list.length > 0 && !moreLoading}}" class="load-more dim">
+    {{ finished ? '没有更多消息了' : '点击消息展开正文，展开即标记已读；上滑加载更多' }}
+  </view>
+</view>

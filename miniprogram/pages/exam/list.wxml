@@ -1,29 +1,47 @@
-<view class="container">
-  <view wx:if="{{loading}}" class="empty">加载中…</view>
-  <view wx:elif="{{sessions.length === 0}}" class="empty">暂无可参加的场次</view>
+<view class="page">
+  <view class="header">
+    <view class="header-title">考试中心</view>
+    <view class="header-sub">选择场次报名参加考试，进入即开始计时</view>
+    <view wx:if="{{sessions.length > 0}}" class="header-meta">共 {{sessions.length}} 个场次</view>
+  </view>
 
-  <view wx:for="{{sessions}}" wx:key="id" class="card">
-    <view class="row">
-      <view class="card-title">{{item.name}}</view>
-      <view class="tag">时长 {{item.durationMinutes}} 分钟</view>
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{sessions.length === 0}}" class="state-box">暂无可参加的场次</view>
+
+  <view wx:for="{{sessions}}" wx:key="id" class="card session-card">
+    <view class="session-top">
+      <view class="session-name">{{item.name}}</view>
+      <view class="badge {{item.registration ? 'badge-on' : 'badge-off'}}">{{item.registration ? '已报名' : '未报名'}}</view>
     </view>
-    <view class="muted line">考试时间：{{item.startText}} ~ {{item.endText}}</view>
-    <view class="muted line">报名截止：{{item.registerEndAt ? item.registerEndAt : '不限'}}</view>
 
-    <view wx:if="{{item.registration}}" class="tag-green tag">已报名 · {{item.registration.ticketNo}}</view>
-    <view wx:else class="tag-gray tag">未报名</view>
+    <view class="session-info">
+      <view class="info-row">
+        <view class="info-label">考试时间</view>
+        <view class="info-value">{{item.startText}} ~ {{item.endText}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">报名截止</view>
+        <view class="info-value">{{item.registerEndAtText}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">考试时长</view>
+        <view class="info-value">{{item.durationMinutes}} 分钟</view>
+      </view>
+    </view>
+
+    <view wx:if="{{item.registration}}" class="ticket">准考证号 {{item.registration.ticketNo}}</view>
 
     <view class="actions">
-      <view wx:if="{{!item.registration}}" class="btn-ghost" data-id="{{item.id}}" bindtap="register">立即报名</view>
+      <view wx:if="{{!item.registration}}" class="action-btn primary" data-id="{{item.id}}" bindtap="register">立即报名</view>
       <view wx:if="{{item.registration && (!item.attempt || item.attempt.status === 'IN_PROGRESS')}}"
-            class="btn-primary flex1" data-id="{{item.id}}"
+            class="action-btn primary" data-id="{{item.id}}"
             data-status="{{item.attempt ? item.attempt.status : ''}}"
             data-attempt-id="{{item.attempt ? item.attempt.attemptId : ''}}"
             bindtap="enterExam">
         {{item.attempt ? '继续考试' : '进入考试'}}
       </view>
       <view wx:if="{{item.attempt && item.attempt.status !== 'IN_PROGRESS'}}"
-            class="btn-ghost flex1" data-attempt="{{item.attempt.attemptId}}" bindtap="viewResult">
+            class="action-btn ghost" data-attempt="{{item.attempt.attemptId}}" bindtap="viewResult">
         查看成绩
       </view>
     </view>

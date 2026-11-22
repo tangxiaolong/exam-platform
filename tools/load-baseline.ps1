@@ -1,4 +1,4 @@
-﻿# 外部压测：对**已运行**的真实环境压答题保存，产出 p50/p95/p99。
+# 外部压测：对**已运行**的真实环境压答题保存，产出 p50/p95/p99。
 #
 # 与 LoadBaselineTest 的区别：
 #   - LoadBaselineTest 在进程内跑（H2 内存库），用于「改动前后」的同一台机器对比；
@@ -9,8 +9,7 @@
 #
 # 用法（PowerShell 7+）：
 #   pwsh tools/load-baseline.ps1 -Token "<考生token>" -AttemptId 123 -QuestionId 456
-#   pwsh tools/load-baseline.ps1 -BaseUrl http://pre.example.com -Token "..." -AttemptId 123 `
-#        -QuestionId 456 -Threads 16 -Total 400
+#   pwsh tools/load-baseline.ps1 -BaseUrl http://pre.example.com -Token "..." -AttemptId 123 -QuestionId 456 -Threads 16 -Total 400
 #
 # 前置：目标考生必须已开考（attempt 处于 IN_PROGRESS），否则保存接口会返回 EXAM_NOT_IN_PROGRESS。
 param(
@@ -38,8 +37,18 @@ $samples = 1..$Threads | ForEach-Object -Parallel {
     for ($i = 0; $i -lt $using:perThread; $i++) {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         try {
-            Invoke-RestMethod -Uri $using:url -Method Put -Headers $using:headers `
-                -Body $using:body -TimeoutSec 30 | Out-Null
+            # 参数用哈希表 splat：反引号续行在纯 LF 文件里对 Windows PowerShell 5.1 会静默失效
+            $reqUrl = $using:url
+            $reqHeaders = $using:headers
+            $reqBody = $using:body
+            $requestArgs = @{
+                Uri        = $reqUrl
+                Method     = 'Put'
+                Headers    = $reqHeaders
+                Body       = $reqBody
+                TimeoutSec = 30
+            }
+            Invoke-RestMethod @requestArgs | Out-Null
         }
         catch {
             Write-Host "请求失败：$($_.Exception.Message)" -ForegroundColor Red

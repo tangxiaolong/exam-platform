@@ -18,4 +18,8 @@ public class ExamSubject extends BaseEntity {
     /** ENABLED / DISABLED */
     private String status;
     private Integer sortNo;
+
+    /** 题库规模（非表字段）：科目列表接口按启用题实时统计后回填。 */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Integer questionCount;
 }

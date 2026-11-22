@@ -6,6 +6,7 @@ import com.exam.platform.common.api.Result;
 import com.exam.platform.modules.exam.dto.AttemptView;
 import com.exam.platform.modules.exam.dto.ExamResultView;
 import com.exam.platform.modules.exam.dto.MarkingItemView;
+import com.exam.platform.modules.exam.dto.SessionCloneRequest;
 import com.exam.platform.modules.exam.dto.SessionSaveRequest;
 import com.exam.platform.modules.exam.entity.ExamRegistration;
 import com.exam.platform.modules.exam.entity.ExamResultHistory;
@@ -51,6 +52,14 @@ public class ExamAdminController {
             detail = "#result.data.name")
     public Result<ExamSession> create(@RequestBody SessionSaveRequest request) {
         return Result.ok(sessionService.save(request));
+    }
+
+    /** 复制场次：沿用源场次规则生成新草稿，只换名称与时间窗。 */
+    @PostMapping("/sessions/{id}/clone")
+    @Audited(action = "EXAM_SESSION_CLONE", target = "'exam_session:' + #result.data.id()",
+            detail = "'from=' + #id")
+    public Result<ExamSession> clone(@PathVariable Long id, @RequestBody SessionCloneRequest request) {
+        return Result.ok(sessionService.clone(id, request));
     }
 
     @PutMapping("/sessions/{id}")
@@ -100,11 +109,12 @@ public class ExamAdminController {
 
     // ------------------------------------------------------------ 人工阅卷
 
-    /** 阅卷队列（默认 REVIEWING 待阅卷）。 */
+    /** 阅卷队列（默认 REVIEWING 待阅卷），可按场次聚焦。 */
     @GetMapping("/marking/queue")
     public Result<PageResult<AttemptView>> markingQueue(@RequestParam(defaultValue = "REVIEWING") String status,
+                                                       @RequestParam(required = false) Long sessionId,
                                                        PageQuery pageQuery) {
-        return Result.ok(attemptService.pageByStatus(status, pageQuery));
+        return Result.ok(attemptService.pageByStatus(status, sessionId, pageQuery));
     }
 
     @GetMapping("/attempts/{attemptId}/marking")

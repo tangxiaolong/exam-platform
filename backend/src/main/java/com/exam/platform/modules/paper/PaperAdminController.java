@@ -62,6 +62,15 @@ public class PaperAdminController {
     }
 
     /** 试组卷：按规则抽题但不落库，返回将要生成的试卷内容（只读，不审计）。 */
+    /** 复制试卷：沿用组卷规则/题目清单生成新草稿，只需新名称（缺省为「原名-副本」）。 */
+    @PostMapping("/{id}/clone")
+    @Audited(action = "PAPER_CLONE", target = "'exam_paper:' + #result.data.id()",
+            detail = "'from=' + #id")
+    public Result<ExamPaper> clone(@PathVariable Long id,
+                                   @RequestParam(required = false) String name) {
+        return Result.ok(paperService.clone(id, name));
+    }
+
     @PostMapping("/{id}/preview")
     public Result<SnapshotContent> preview(@PathVariable Long id) {
         return Result.ok(paperService.preview(id));
@@ -73,6 +82,11 @@ public class PaperAdminController {
     }
 
     /** 生成不可变快照，返回快照 ID，供场次引用。 */
+    @GetMapping("/{id}/snapshots")
+    public Result<java.util.List<java.util.Map<String, Object>>> snapshots(@PathVariable Long id) {
+        return Result.ok(paperService.listSnapshots(id));
+    }
+
     @PostMapping("/{id}/snapshots")
     @Audited(action = "PAPER_SNAPSHOT", target = "'exam_paper:' + #id",
             detail = "'snapshot=' + #result.data.id")

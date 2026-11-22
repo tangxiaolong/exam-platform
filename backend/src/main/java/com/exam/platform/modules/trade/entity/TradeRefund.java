@@ -36,4 +36,8 @@ public class TradeRefund extends BaseEntity {
     private LocalDateTime appliedAt;
     private LocalDateTime auditedAt;
     private LocalDateTime refundedAt;
+    /** 部分退款对应的订单明细；NULL 表示整单退款。 */
+    private Long orderItemId;
+    /** 本次退款数量（整单退款时为 1）。 */
+    private Integer quantity;
 }

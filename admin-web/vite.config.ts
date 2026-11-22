@@ -14,7 +14,7 @@ export default defineConfig({
     proxy: {
       // 后端 context-path 为 /api
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8090',
         changeOrigin: true
       }
     }

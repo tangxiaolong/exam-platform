@@ -58,6 +58,9 @@ public class OrgPortalController {
     @Audited(action = "ORG_PORTAL_GRANT", target = "'sys_org:' + #orgId",
             detail = "'batch=' + #result.data.batchNo() + ' granted=' + #result.data.grantedCount()")
     public Result<OrgGrantResult> grant(@PathVariable Long orgId, @RequestBody OrgGrantRequest request) {
+        // 发放权益是机构侧唯一会「动钱」的动作，值得单独一道权限码：
+        // 角色只能回答「是不是机构管理员」，回答不了「这个机构管理员能不能发」
+        com.exam.platform.common.security.UserContext.requirePermission("org:grant");
         return Result.ok(orgPortalService.grant(orgId, requireUserId(), request));
     }
 

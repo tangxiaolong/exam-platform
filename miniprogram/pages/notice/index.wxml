@@ -1,0 +1,16 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{list.length === 0}}" class="state-box">暂无公告</view>
+
+  <view wx:for="{{list}}" wx:key="id" class="card notice-card" bindtap="toggle" data-id="{{item.id}}">
+    <view class="notice-head">
+      <view class="notice-title">
+        <text wx:if="{{item.pinned}}" class="pinned">置顶</text>
+        {{item.title}}
+      </view>
+      <view class="notice-arrow {{expandedId === item.id ? 'open' : ''}}">›</view>
+    </view>
+    <view class="notice-time">{{item.publishAtText}}</view>
+    <view wx:if="{{expandedId === item.id}}" class="notice-content">{{detail.content}}</view>
+  </view>
+</view>

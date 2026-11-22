@@ -15,6 +15,12 @@ import lombok.EqualsAndHashCode;
 @TableName("exam_paper_rule")
 public class ExamPaperRule extends BaseEntity {
 
+    /** 知识点范围：为空表示不限；指定后只从该知识点下抽题。 */
+    private Long knowledgePointId;
+
+    /** 难度配比 JSON（按权重，如 {"EASY":2,"NORMAL":5,"HARD":3}）；与 difficulty 互斥。 */
+    private String difficultyMix;
+
     private Long paperId;
     /** SINGLE / MULTIPLE / JUDGE */
     private String type;

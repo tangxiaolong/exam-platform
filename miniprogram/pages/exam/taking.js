@@ -17,8 +17,11 @@ Page({
     savedCount: 0,
     pendingCount: 0,
     answeredMap: {},
+    answeredCount: 0,
     essayText: '',
-    submitting: false
+    submitting: false,
+    // 底部抽屉答题卡开关
+    drawerVisible: false
   },
 
   onLoad(query) {
@@ -26,6 +29,10 @@ Page({
     this.answers = {}
     this.versions = {}
     this.submitted = false
+    // 已改动但还没落库的题号。用集合而不是「一个定时器 + 一个题号」：
+    // 后者在连续答几题时，后一次会把前一次的定时器清掉，前一题就再也不会被发出，
+    // 交卷也不会带上它——这属于「答案丢失」，不是「保存慢一点」
+    this.dirty = new Set()
 
     // 断网期间暂存的答案，在网络恢复的那一刻自动补交
     this.networkListener = (res) => {
@@ -45,8 +52,10 @@ Page({
   },
 
   onShow() {
-    // 从小程序切后台再回来、或刚进入页面：把上次没交成功的答案补交掉
+    // 从小程序切后台再回来、或刚进入页面：把上次没交成功的答案补交掉。
+    // 先冲内存里待落库的，再冲离线队列——顺序反了会把同一题的两个版本按旧的后写
     if (this.data.attemptId) {
+      this.flushDirty()
       this.flushQueue()
     }
   },
@@ -90,13 +99,76 @@ Page({
       current: questions[0] || null,
       selectedMap: this.buildSelectedMap(questions[0], answers),
       answeredMap,
+      answeredCount: Object.keys(answeredMap).length,
       savedCount: Object.keys(answers).length
     })
     if (data.status !== 'IN_PROGRESS') {
       wx.redirectTo({ url: '/pages/exam/result?attemptId=' + data.attemptId })
       return
     }
+    this.restoreDraft()
     this.startTimer()
+  },
+
+  draftKey() {
+    return 'exam_draft_' + (this.data.attemptId || this.sessionId)
+  },
+
+  /**
+   * 本地草稿：答案在 400ms 防抖窗口内还没落库、或进程直接被系统杀掉时，
+   * 内存里的选择不至于彻底丢失（PRD 4.5 中断不丢答案的最后一道兜底）。
+   */
+  writeDraft(questionId) {
+    if (!this.data.attemptId) return
+    try {
+      const key = this.draftKey()
+      const draft = wx.getStorageSync(key) || {}
+      draft[questionId] = { answer: this.answers[questionId] || [], at: Date.now() }
+      wx.setStorageSync(key, draft)
+    } catch (e) {
+      // 本地存储不可用时静默：答题主链路不受影响
+    }
+  },
+
+  /**
+   * 恢复本地草稿：只填充「服务端尚无答案」的题（服务端已有答案时以服务端为准），
+   * 恢复出的答案走既有落库通道（save 失败自动入离线队列），不另起一套同步机制。
+   */
+  restoreDraft() {
+    let draft = {}
+    try {
+      draft = wx.getStorageSync(this.draftKey()) || {}
+    } catch (e) {
+      return
+    }
+    const ids = Object.keys(draft || {})
+    if (!ids.length) return
+    const answers = { ...this.answers }
+    const answeredMap = { ...this.data.answeredMap }
+    let restored = 0
+    ids.forEach((rawId) => {
+      const item = draft[rawId]
+      const questionId = Number(rawId)
+      if (!item || !(item.answer || []).length) return
+      if ((answers[questionId] || []).length) return
+      answers[questionId] = item.answer
+      answeredMap[questionId] = true
+      this.dirty.add(questionId)
+      restored++
+    })
+    if (!restored) return
+    this.answers = answers
+    const current = this.data.current
+    const patch = { answeredMap, answeredCount: Object.keys(answeredMap).length, savedCount: Object.keys(answers).length }
+    if (current && answeredMap[current.id]) {
+      patch.selectedMap = this.buildSelectedMap(current, answers)
+      if (current.type === 'ESSAY') {
+        patch.essayText = (answers[current.id] || [''])[0] || ''
+      }
+    }
+    this.setData(patch)
+    this.flushDirty()
+    wx.showToast({ title: `已恢复 ${restored} 题本地答案`, icon: 'none' })
   },
 
   buildSelectedMap(question, answers) {
@@ -152,7 +224,8 @@ Page({
     } else {
       delete answeredMap[question.id]
     }
-    this.setData({ selectedMap, answeredMap })
+    this.setData({ selectedMap, answeredMap, answeredCount: Object.keys(answeredMap).length })
+    this.writeDraft(question.id)
     this.scheduleSave(question.id)
   },
 
@@ -167,14 +240,28 @@ Page({
     } else {
       delete answeredMap[question.id]
     }
-    this.setData({ essayText: text, answeredMap })
+    this.setData({ essayText: text, answeredMap, answeredCount: Object.keys(answeredMap).length })
+    this.writeDraft(question.id)
     if (this.essayTimer) clearTimeout(this.essayTimer)
     this.essayTimer = setTimeout(() => this.save(question.id), 1000)
   },
 
   scheduleSave(questionId) {
-    if (this.saveTimer) clearTimeout(this.saveTimer)
-    this.saveTimer = setTimeout(() => this.save(questionId), 400)
+    this.dirty.add(questionId)
+    // 只有一个定时器，但它冲刷的是「所有待保存的题」，而不是被它覆盖掉的那一题
+    if (this.saveTimer) return
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null
+      this.flushDirty()
+    }, 400)
+  },
+
+  /** 把内存里还没落库的答案全部发出。交卷前必须先做，否则最近 400ms 内的答案不会被提交。 */
+  flushDirty() {
+    const ids = Array.from(this.dirty)
+    this.dirty.clear()
+    if (!ids.length) return Promise.resolve([])
+    return Promise.all(ids.map((id) => this.save(id)))
   },
 
   save(questionId, silent = true) {
@@ -272,7 +359,7 @@ Page({
         } else {
           delete answeredMap[questionId]
         }
-        const patch = { answeredMap }
+        const patch = { answeredMap, answeredCount: Object.keys(answeredMap).length }
         const current = this.data.current
         if (current && current.id === questionId) {
           patch.selectedMap = this.buildSelectedMap(current, { [questionId]: serverKeys })
@@ -310,23 +397,67 @@ Page({
     this.switchTo({ currentTarget: { dataset: { index: this.data.index + 1 } } })
   },
 
+  // —— 底部抽屉答题卡 ——
+  openDrawer() {
+    this.setData({ drawerVisible: true })
+  },
+
+  closeDrawer() {
+    this.setData({ drawerVisible: false })
+  },
+
+  // 抽屉遮罩/面板用来吞掉点击与滑动，避免点面板时触发遮罩关闭、滑动穿透到页面
+  noop() {},
+
+  switchFromCard(e) {
+    const index = Number(e.currentTarget.dataset.index)
+    const question = this.data.questions[index]
+    if (!question) return
+    this.switchTo({ currentTarget: { dataset: { index } } })
+    this.setData({ drawerVisible: false })
+  },
+
   confirmSubmit() {
+    if (this.data.drawerVisible) {
+      this.setData({ drawerVisible: false })
+    }
     const unanswered = this.data.questions.filter((q) => !(this.answers[q.id] || []).length).length
     wx.showModal({
       title: '确认交卷',
       content: unanswered > 0 ? `还有 ${unanswered} 题未作答，交卷后不能再修改答案。` : '交卷后不能再修改答案，确认交卷？',
       success: (res) => {
         if (!res.confirm) return
-        // 交卷前先把离线暂存的答案补交掉：否则服务端收到的还是断网前那一版
-        if (this.data.pendingCount > 0) {
+        // 交卷前必须两件事都做完：
+        //   1) 把内存里还在 400ms 防抖窗口内的答案发出去（否则最后点的那几题不会被提交）；
+        //   2) 把离线队列补交掉（否则服务端收到的还是断网前那一版）。
+        // 任何一件没做完就交卷，等于用一份更旧的答案结束考试。
+        if (this.saveTimer) {
+          clearTimeout(this.saveTimer)
+          this.saveTimer = null
+        }
+        const needLoading = this.data.pendingCount > 0 || this.dirty.size > 0
+        if (needLoading) {
           wx.showLoading({ title: '正在同步离线答案' })
         }
-        this.flushQueue().then(() => {
-          if (this.data.pendingCount > 0) {
-            wx.hideLoading()
-          }
-          this.doSubmit()
-        })
+        this.flushDirty()
+          .then(() => this.flushQueue())
+          .then((left) => {
+            if (needLoading) wx.hideLoading()
+            if (left > 0) {
+              // 仍有答案没同步完：此时交卷会把断网前那一版当成最终答案，宁可让用户重试
+              wx.showModal({
+                title: '还有答案未同步',
+                content: `仍有 ${left} 条答案没有提交成功，请恢复网络后重新交卷。`,
+                showCancel: false
+              })
+              return
+            }
+            this.doSubmit()
+          })
+          .catch(() => {
+            if (needLoading) wx.hideLoading()
+            wx.showToast({ title: '交卷前同步失败，请重试', icon: 'none' })
+          })
       }
     })
   },
@@ -346,6 +477,10 @@ Page({
       .then((res) => {
         // 交卷成功即清空该场次的离线队列，避免下一场考试把上一场的答案重放出去
         answerQueue.clear('attempt', String(this.data.attemptId))
+        // 交卷成功即清本地草稿，避免下一场考试或重进页面时恢复出上一场的答案
+        try {
+          wx.removeStorageSync(this.draftKey())
+        } catch (e) {}
         wx.redirectTo({ url: '/pages/exam/result?attemptId=' + res.attemptId })
       })
       .catch(() => {

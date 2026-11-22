@@ -44,6 +44,97 @@ async function openLogs(row: MsgTask) {
   drawerVisible.value = true
 }
 
+const historyVisible = ref(false)
+const historyLoading = ref(false)
+const historyList = ref<any[]>([])
+const historyTotal = ref(0)
+
+async function openHistory(pageNo = 1) {
+  historyVisible.value = true
+  historyLoading.value = true
+  try {
+    const page = await messageApi.inboxBatches({ pageNo, pageSize: 10 })
+    historyList.value = page.list
+    historyTotal.value = page.total
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const inboxVisible = ref(false)
+const sending = ref(false)
+const inboxForm = reactive({ title: '', content: '', userIds: '' })
+
+const tplVisible = ref(false)
+const templates = ref<any[]>([])
+const tplSaving = ref(false)
+const tplForm = reactive({ templateCode: '', title: '', content: '', enabled: false })
+
+async function openTemplates() {
+  tplForm.templateCode = ''
+  templates.value = (await messageApi.templates()) || []
+  tplVisible.value = true
+}
+
+function editTemplate(row: any) {
+  tplForm.templateCode = row.templateCode
+  tplForm.title = row.title || ''
+  tplForm.content = row.content || ''
+  tplForm.enabled = row.enabled === 1
+}
+
+async function saveTemplate() {
+  if (!tplForm.title.trim() || !tplForm.content.trim()) {
+    ElMessage.warning('标题与正文不能为空')
+    return
+  }
+  tplSaving.value = true
+  try {
+    await messageApi.upsertTemplate(tplForm.templateCode, {
+      title: tplForm.title.trim(),
+      content: tplForm.content,
+      enabled: tplForm.enabled
+    })
+    ElMessage.success('模板已保存')
+    tplForm.templateCode = ''
+    templates.value = (await messageApi.templates()) || []
+  } finally {
+    tplSaving.value = false
+  }
+}
+
+function openInbox() {
+  inboxForm.title = ''
+  inboxForm.content = ''
+  inboxForm.userIds = ''
+  inboxVisible.value = true
+}
+
+async function sendInbox() {
+  if (!inboxForm.title.trim() || !inboxForm.content.trim()) {
+    ElMessage.warning('标题与正文不能为空')
+    return
+  }
+  sending.value = true
+  try {
+    const userIds = inboxForm.userIds
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => Number(item))
+      .filter((id) => Number.isFinite(id) && id > 0)
+    const count = await messageApi.sendInbox({
+      title: inboxForm.title.trim(),
+      content: inboxForm.content.trim(),
+      userIds: userIds.length > 0 ? userIds : undefined
+    })
+    ElMessage.success(`已发送给 ${count} 个账号`)
+    inboxVisible.value = false
+  } finally {
+    sending.value = false
+  }
+}
+
 async function resend(row: MsgTask) {
   await messageApi.resend(row.id)
   ElMessage.success('已重新投递')
@@ -83,6 +174,9 @@ onMounted(load)
         <el-option v-for="(item, key) in statusLabel" :key="key" :label="item.text" :value="key" />
       </el-select>
       <el-button type="primary" @click="load">查询</el-button>
+      <el-button type="primary" plain @click="openInbox">群发站内信</el-button>
+      <el-button @click="openHistory">发送历史</el-button>
+      <el-button @click="openTemplates">模板管理</el-button>
     </div>
 
     <el-table v-loading="loading" :data="list" border stripe>
@@ -90,7 +184,7 @@ onMounted(load)
       <el-table-column label="业务场景" width="130">
         <template #default="{ row }">{{ sceneLabel[row.scene] || row.scene }}</template>
       </el-table-column>
-      <el-table-column prop="templateCode" label="模板" width="200" />
+      <el-table-column prop="templateCode" label="模板" width="320" />
       <el-table-column prop="userId" label="接收人" width="100" />
       <el-table-column prop="bizKey" label="业务键" width="160" />
       <el-table-column label="状态" width="120">
@@ -114,6 +208,80 @@ onMounted(load)
       <el-pagination v-model:current-page="query.pageNo" v-model:page-size="query.pageSize"
                      :total="total" layout="total, prev, pager, next" @current-change="load" />
     </div>
+
+    <el-drawer v-model="historyVisible" title="发送历史" size="680px">
+      <el-table v-loading="historyLoading" :data="historyList" border stripe>
+        <el-table-column prop="title" label="标题" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="total" label="收件人数" width="90" />
+        <el-table-column prop="read_count" label="已读" width="80" />
+        <el-table-column label="发送时间" width="170">
+          <template #default="{ row }">{{ String(row.created_at || '').replace('T', ' ').slice(0, 19) }}</template>
+        </el-table-column>
+        <el-table-column prop="batch_no" label="批次号" width="130" show-overflow-tooltip />
+      </el-table>
+      <div class="pager">
+        <el-pagination small layout="total, prev, pager, next" :total="historyTotal" :page-size="10"
+                       @current-change="openHistory" />
+      </div>
+    </el-drawer>
+
+    <el-dialog v-model="tplVisible" title="消息模板" width="860px">
+      <p class="page-desc" style="margin: 0 0 12px;">模板码维度在线编辑场景文案；保存后新消息按模板渲染，历史消息不受影响。</p>
+      <el-table :data="templates" size="small" max-height="360">
+        <el-table-column prop="templateCode" label="模板码" width="320" />
+        <el-table-column prop="title" label="标题" min-width="200" />
+        <el-table-column label="启用" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.enabled === 1 ? 'success' : 'info'" size="small">
+              {{ row.enabled === 1 ? '启用' : '停用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="editTemplate(row)">编辑</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template v-if="tplForm.templateCode">
+        <el-divider content-position="left">{{ tplForm.templateCode }}</el-divider>
+        <el-form label-width="90px">
+          <el-form-item label="标题">
+            <el-input v-model="tplForm.title" />
+          </el-form-item>
+          <el-form-item label="正文">
+            <el-input v-model="tplForm.content" type="textarea" :rows="5" />
+          </el-form-item>
+          <el-form-item label="启用">
+            <el-switch v-model="tplForm.enabled" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="tplSaving" @click="saveTemplate">保存模板</el-button>
+            <el-button @click="tplForm.templateCode = ''">取消编辑</el-button>
+          </el-form-item>
+        </el-form>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="inboxVisible" title="群发站内信" width="560px">
+      <el-form label-width="90px">
+        <el-form-item label="标题" required>
+          <el-input v-model="inboxForm.title" maxlength="150" show-word-limit
+                    placeholder="如：系统维护通知" />
+        </el-form-item>
+        <el-form-item label="正文" required>
+          <el-input v-model="inboxForm.content" type="textarea" :rows="4" maxlength="2000"
+                    show-word-limit placeholder="发送给全体考生（管理员以外的账号）" />
+        </el-form-item>
+        <el-form-item label="收件人">
+          <el-input v-model="inboxForm.userIds" placeholder="用户ID，逗号分隔；留空 = 全体考生" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="inboxVisible = false">取消</el-button>
+        <el-button type="primary" :loading="sending" @click="sendInbox">发送</el-button>
+      </template>
+    </el-dialog>
 
     <el-drawer v-model="drawerVisible" title="发送日志" size="620px">
       <div v-if="currentTask" class="summary">

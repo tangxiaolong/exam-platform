@@ -164,6 +164,7 @@ public class QuestionImportService {
         question.setAnalysis(row.analysis());
         question.setDifficulty(row.difficulty());
         question.setTags(row.tags());
+        question.setSource(row.source());
         question.setStatus(row.status());
         question.setVersion(1);
         Entities.forInsert(question);
@@ -174,7 +175,7 @@ public class QuestionImportService {
         return new QuestionSaveRequest(entity.getSubjectId(), entity.getType(), entity.getStem(),
                 Json.readList(entity.getOptionsJson(), com.exam.platform.modules.question.model.OptionItem.class),
                 Json.readList(entity.getAnswerJson(), String.class), entity.getAnalysis(),
-                entity.getDifficulty(), entity.getTags(), entity.getStatus());
+                entity.getDifficulty(), entity.getTags(), entity.getStatus(), null, entity.getSource());
     }
 
     /** 逐行业务校验，错误信息面向运营人员而非开发。 */

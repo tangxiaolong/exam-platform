@@ -1,0 +1,213 @@
+name: CI
+
+# 四个 Job 全部为阻断项：任一红即不允许合并。
+# 判定「红」的归因方法见 doc/07_CI首次运行自检清单.md。
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  # 手动触发：不改代码也能跑一次，用于验证 workflow 本身（首次接入时最有用）
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 业务时区固定 Asia/Shanghai（见 README 第 4 节「相对文档的简化点」）。
+  # runner 默认 UTC，不对齐会让「日期边界」「交卷截止」这类断言在 CI 上换一种表现：
+  # 那不是缺陷暴露，只是环境差异，会把首次接入的噪音和真问题混在一起。
+  # 代价是 CI 不覆盖「换成 UTC 部署会不会坏」——这一条单列在 doc/07 的已知盲区里。
+  TZ: Asia/Shanghai
+
+jobs:
+  backend-test:
+    name: backend · mvn test（H2 + 真实 Redis）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      # 必须真正提供 Redis：RedisRateLimiterIntegrationTest 连不上时会 abort 成 skipped，
+      # 看起来永远是绿的，但那 4 条用例（Lua 原子性、补充节奏、TTL、多实例共享）从未跑过。
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: mvn test
+        env:
+          APP_TEST_REDIS_HOST: 127.0.0.1
+          APP_TEST_REDIS_PORT: '6379'
+          APP_TEST_REDIS_DB: '15'
+        run: mvn -B -ntp test
+
+      - name: 汇总执行结果
+        if: always()
+        run: |
+          report_dir=target/surefire-reports
+          if [ ! -d "$report_dir" ]; then
+            echo "::error::没有生成 surefire 报告，测试可能在编译阶段就失败了"
+            exit 1
+          fi
+          awk -F'"' '/<testsuite / {
+            for (i = 1; i < NF; i++) {
+              if ($i ~ /tests=$/)    t += $(i + 1)
+              if ($i ~ /failures=$/) f += $(i + 1)
+              if ($i ~ /errors=$/)   e += $(i + 1)
+              if ($i ~ /skipped=$/)  s += $(i + 1)
+            }
+          } END { printf "合计：tests=%d failures=%d errors=%d skipped=%d\n", t, f, e, s }' \
+            "$report_dir"/TEST-*.xml
+
+      - name: 断言 Redis 用例真的跑了（不是被 skip 掉）
+        run: |
+          report="$PWD/target/surefire-reports/TEST-com.exam.platform.common.ratelimit.RedisRateLimiterIntegrationTest.xml"
+          if [ ! -f "$report" ]; then
+            echo "::error::找不到 Redis 集成测试报告：这类用例压根没进构建"
+            exit 1
+          fi
+          if grep -qE 'skipped="[1-9]' "$report"; then
+            echo "::error::Redis 集成用例被 skipped，说明 Redis service 没连上（检查 APP_TEST_REDIS_* 与 service 就绪）"
+            exit 1
+          fi
+          echo "Redis 集成用例已执行：$(grep -oE 'tests="[0-9]+"' "$report" | head -n 1)"
+
+      - name: 保留测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
+          if-no-files-found: warn
+
+  api-contract:
+    name: api-contract · 契约与前端一致性（纯静态）
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # 两个检查都不依赖 Node / JDK / pwsh，跑 bash 版本即可：
+      # 少一个运行时依赖，就少一个「runner 镜像变化导致 Job 挂掉」的来源
+      - name: 前端声明的接口路径都能在后端找到映射
+        run: bash tools/check-api-contract.sh
+
+      - name: api 方法 / DTO 字段 / 路由菜单一致性
+        run: bash tools/check-frontend-consistency.sh
+
+  miniprogram-test:
+    name: miniprogram · 离线答案队列单测
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 不装任何依赖：测试用 Node 内置 test runner，wx 用最小桩替身。
+      # 这一层覆盖的是 doc/08 里能自动判定的部分（去重、上限、按场次隔离、
+      # 失败停止 / 业务错误出队、冲突回调），真机只剩「网络事件与 toast 可见性」
+      - name: node --test
+        run: node --test tools/miniprogram-tests/
+
+  mysql-migration:
+    name: mysql-migration · Flyway 在真实 MySQL 8 上迁移
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      # H2 的 MySQL 兼容模式抹掉的差异（索引长度、字符集、时间精度、ALTER 回填）
+      # 正是生产首次迁移最容易翻车的地方，所以这一关必须用真 MySQL
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: exam_platform
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: 在 MySQL 8 上跑全部迁移脚本
+        run: |
+          mvn -B -ntp test \
+            -Dtest=MySqlMigrationSmokeTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            '-Dmysql.test.url=jdbc:mysql://127.0.0.1:3306/exam_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8' \
+            -Dmysql.test.user=root \
+            -Dmysql.test.password=root
+
+      - name: 断言迁移用例真的跑了（不是被 assumed-skip 掉）
+        run: |
+          report="$PWD/target/surefire-reports/TEST-com.exam.platform.MySqlMigrationSmokeTest.xml"
+          if [ ! -f "$report" ]; then
+            echo "::error::找不到迁移演练报告：-Dmysql.test.url 没传进去，或测试没被选中"
+            exit 1
+          fi
+          if grep -qE 'skipped="[1-9]' "$report"; then
+            echo "::error::迁移演练被 skipped：连接参数没生效（属性名写错 / 被引号吞掉）"
+            exit 1
+          fi
+
+  admin-web-build:
+    name: admin-web · vue-tsc 类型检查 + vite build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: admin-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          # 锁文件已提交：缓存 key 与安装都基于它，避免「昨天绿、今天因为上游 patch 就红」
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: 类型检查 + 构建（不再 continue-on-error）
+        run: npm run build

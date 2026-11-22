@@ -1,24 +1,34 @@
-<view class="container">
-  <view wx:if="{{loading}}" class="empty">加载中…</view>
-  <view wx:elif="{{products.length === 0}}" class="empty">暂无在售商品</view>
+<view class="page">
+  <view class="header">
+    <view class="header-title">会员商城</view>
+    <view class="header-sub">题库包 · 会员 · 组合套餐，购买即开通</view>
+  </view>
 
-  <view wx:for="{{products}}" wx:key="id" class="card product">
-    <view class="row">
-      <view>
-        <view class="card-title">{{item.name}}</view>
-        <view class="muted desc">{{item.description || ''}}</view>
-      </view>
+  <view wx:if="{{!loading}}" class="coupon-banner" bindtap="toCoupon">
+    <view class="coupon-left">
+      <view class="coupon-badge">券</view>
+      <view class="coupon-text">领券中心 · 先领券再下单更优惠</view>
     </view>
-    <view class="row foot">
-      <view>
+    <view class="coupon-arrow">›</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{products.length === 0}}" class="state-box">暂无在售商品</view>
+
+  <view wx:for="{{products}}" wx:key="id" class="card product-card">
+    <view class="product-top">
+      <view class="product-name">{{item.name}}</view>
+      <view wx:if="{{item.typeText}}" class="product-type">{{item.typeText}}</view>
+    </view>
+    <view class="product-desc">{{item.description || ''}}</view>
+    <view class="product-foot">
+      <view class="price-line">
         <text class="price">{{item.priceText}}</text>
-        <text class="origin" wx:if="{{item.originalPriceFen}}">{{item.originText}}</text>
+        <text wx:if="{{item.originalPriceFen}}" class="origin">{{item.originText}}</text>
       </view>
-      <view class="buy" data-id="{{item.id}}" bindtap="buy">立即购买</view>
+      <view class="buy-btn" data-id="{{item.id}}" bindtap="buy">立即购买</view>
     </view>
   </view>
 
-  <view class="notice">
-    支付为演示链路：下单 → 创建支付单 → 模拟支付回调 → 服务端验签并幂等发放权益。
-  </view>
+  <view class="tip">支付为演示链路：下单 → 创建支付单 → 模拟支付回调 → 服务端验签并幂等发放权益。</view>
 </view>

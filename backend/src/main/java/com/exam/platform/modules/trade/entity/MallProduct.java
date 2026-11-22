@@ -14,6 +14,7 @@ public class MallProduct extends BaseEntity {
     public static final String TYPE_MEMBER = "MEMBER";
     public static final String TYPE_QUESTION_BANK = "QUESTION_BANK";
     public static final String TYPE_COURSE = "COURSE";
+    public static final String TYPE_PACKAGE = "PACKAGE";
 
     public static final String STATUS_ON_SALE = "ON_SALE";
     public static final String STATUS_OFF_SALE = "OFF_SALE";

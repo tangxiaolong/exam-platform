@@ -33,18 +33,100 @@ body,
 
 .toolbar {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   align-items: center;
   margin-bottom: 14px;
 }
 
 .toolbar .spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 窄屏下 spacer 会把右侧按钮推到下一行开头，看起来像"多出来一个孤零零的按钮"。
+   空间不足时直接取消占位，让按钮自然跟在筛选条件后面换行。 */
+@media (max-width: 1280px) {
+  .toolbar .spacer {
+    flex: 0 0 0;
+  }
 }
 
 .pager {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+/* ---------------------------------------------------------------- 通用零件 */
+
+/* 页面顶部的一排小指标：让运营一眼看到「这个范围里有多少东西、有多少是坏的」 */
+.stat-strip {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.stat-item {
+  flex: 1 1 0;
+  min-width: 132px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #1f2937;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #8a94a6;
+}
+
+.stat-item.is-ok .stat-value {
+  color: #16a34a;
+}
+
+.stat-item.is-warn .stat-value {
+  color: #e6a23c;
+}
+
+.stat-item.is-danger .stat-value {
+  color: #f56c6c;
+}
+
+/* 勾选行后才出现的批量操作条：把三个常年灰着的按钮换成「用到才出现」 */
+.sel-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #409eff;
+}
+
+.sel-bar .sel-count b {
+  font-variant-numeric: tabular-nums;
+}
+
+.sel-bar .spacer {
+  flex: 1;
+}
+
+/* 空状态统一留白，避免各页各写一套 inline style */
+.empty-wrap {
+  padding: 28px 0 8px;
 }

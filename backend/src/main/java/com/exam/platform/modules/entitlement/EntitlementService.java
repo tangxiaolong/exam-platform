@@ -67,7 +67,7 @@ public class EntitlementService {
         } else {
             account.setTotalAmount(account.getTotalAmount() + amount);
             account.setStatus(EntitlementAccount.STATUS_AVAILABLE);
-            account.setExpireAt(expireAt == null ? account.getExpireAt() : expireAt);
+            account.setExpireAt(mergeExpireAt(account.getEntitlementType(), account.getExpireAt(), expireAt));
             accountMapper.updateById(account);
         }
 
@@ -90,6 +90,28 @@ public class EntitlementService {
             log.info("并发重复权益事件已忽略 eventId={}", eventId);
         }
         return account;
+    }
+
+    /**
+     * 到期日合并。
+     *
+     * <p>会员续费必须是「叠加时长」而不是「覆盖到期日」：覆盖会让提前续费的用户
+     * 白白损失剩余天数，这是客服争议最集中的地方。这里把入参解释成「从今天起的时长」，
+     * 再叠加到较晚的基准（原到期日或今天）上。</p>
+     *
+     * <p>非会员类型保持原语义（以最新一次发放的到期日为准），避免影响既有额度类权益。</p>
+     */
+    private LocalDateTime mergeExpireAt(String entitlementType, LocalDateTime current, LocalDateTime incoming) {
+        if (incoming == null) {
+            return current;
+        }
+        if (!"MEMBER".equals(entitlementType)) {
+            return incoming;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime base = (current != null && current.isAfter(now)) ? current : now;
+        long seconds = Math.max(java.time.Duration.between(now, incoming).getSeconds(), 0L);
+        return base.plusSeconds(seconds);
     }
 
     public List<EntitlementAccount> listByUser(Long userId) {

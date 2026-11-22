@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 
 # 路径必须从脚本位置推导，不能写死：CI 在 ubuntu-latest 上以 pwsh 跑本脚本，
 # 写死 Windows 盘符会让 Get-ChildItem 直接抛错，job 必红
@@ -15,8 +15,11 @@ foreach ($required in @($javaDir, $apiTsPath, $mpDir)) {
 
 function Strip-Path([string]$p) {
     $p = $p -split '\?' | Select-Object -First 1
-    $p = [regex]::Replace($p, '\$\{[^}]+\}', '{id}')
-    $p = $p -replace '\{\d+\}', '{id}'
+    # 占位符泛指：后端写 {attemptId}、前端写 ${attemptId} → 都归一成 {p}。
+    # 顺序不能反：只做一条 '\{[^}]+\}' 会把 ${attemptId} 变成 ${p}（留下 $），
+    # 于是所有模板字符串路径永远比不上后端。
+    $p = [regex]::Replace($p, '\$\{[^}]+\}', '{p}')
+    $p = [regex]::Replace($p, '\{[^}]+\}', '{p}')
     return $p
 }
 
@@ -39,8 +42,11 @@ $back = $back | Sort-Object -Unique
 
 # ---------- admin-web ----------
 $apiTs = Get-Content $apiTsPath -Raw
+# 正则必须用单引号字符串：双引号里 `` `" `` 会被解析成转义引号，字符类里的反引号被吃掉，
+# 于是 `url: `/x`` 这种模板字符串写法全部漏检——那正是本项目 api/index.ts 的主流写法（68 条里漏了 42 条）。
+$urlPattern = 'url:\s*[`"'']([^`"'']+)[`"'']'
 $front = @()
-foreach ($m in [regex]::Matches($apiTs, "url:\s*[`"'']([^`"'']+)[`"'']")) {
+foreach ($m in [regex]::Matches($apiTs, $urlPattern)) {
     $front += Strip-Path $m.Groups[1].Value
 }
 $front = $front | Sort-Object -Unique
@@ -49,7 +55,7 @@ $front = $front | Sort-Object -Unique
 $mp = @()
 Get-ChildItem -Path $mpDir -Recurse -Filter *.js | ForEach-Object {
     $text = Get-Content $_.FullName -Raw
-    foreach ($m in [regex]::Matches($text, "url:\s*[`"'']([^`"'']+)[`"'']")) {
+    foreach ($m in [regex]::Matches($text, 'url:\s*[`"'']([^`"'']+)[`"'']')) {
         $p = Strip-Path $m.Groups[1].Value
         if ($p.StartsWith('/pages')) { continue }
         if (-not $p.StartsWith('/')) { continue }

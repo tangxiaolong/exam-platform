@@ -53,4 +53,16 @@ public final class UserContext {
             throw BizException.forbidden("需要平台管理员权限");
         }
     }
+
+    /**
+     * 权限码校验：{@code *} 全通配、{@code org:*} 前缀通配、其余精确匹配。
+     *
+     * <p>新增接口时用它替代「只判断角色」——角色是粗粒度门票，
+     * 权限码才能表达「同一个机构管理员可以发权益但不能改机构配置」。</p>
+     */
+    public static void requirePermission(String permission) {
+        if (!requireLogin().hasPermission(permission)) {
+            throw BizException.forbidden("缺少权限：" + permission);
+        }
+    }
 }

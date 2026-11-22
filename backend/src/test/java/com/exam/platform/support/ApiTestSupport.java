@@ -36,7 +36,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         // 配额本身由 ExportRateLimitTest 用独立上下文专门验证，这里放宽避免跨用例互相污染
         "app.rate-limit.export-rule.per-user.capacity=100000",
         "app.rate-limit.export-rule.per-ip.capacity=100000",
-        "app.upload.dir=target/test-uploads"
+        "app.upload.dir=target/test-uploads",
+        // 扩展演示数据（订单/成绩/机构等）在测试上下文关闭：既有用例按"基础种子"断言，互不污染
+        "app.demo-data.extra.enabled=false"
 })
 @ActiveProfiles("h2")
 public abstract class ApiTestSupport extends AbstractApiTestSupport {
@@ -113,6 +115,19 @@ public abstract class ApiTestSupport extends AbstractApiTestSupport {
         String code = result.path("code").asText();
         assertThat(code).as("应返回业务错误码，实际：%s", result).isNotEqualTo("0");
         return code;
+    }
+
+    /**
+     * 断言请求失败并返回错误提示语。
+     *
+     * <p>错误码只能证明「拒绝了」，但很多场景真正重要的是「提示有没有把人引向正确的修复方向」——
+     * 比如知识点范围内题量不足，提示必须提到知识点标注，而不是让人去加题。</p>
+     */
+    protected String errorMessage(HttpMethod method, String path, String token, Object body) {
+        JsonNode result = call(method, path, token, body);
+        String code = result.path("code").asText();
+        assertThat(code).as("应返回业务错误码，实际：%s", result).isNotEqualTo("0");
+        return result.path("message").asText();
     }
 
     protected String adminToken() {

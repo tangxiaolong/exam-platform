@@ -94,7 +94,7 @@ function isExpired(row: OrgQuota) {
 }
 
 function formatDate(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 16) : '-'
+  return value ? value.replace('T', ' ').slice(0, 19) : '-'
 }
 
 onMounted(loadMyOrgs)

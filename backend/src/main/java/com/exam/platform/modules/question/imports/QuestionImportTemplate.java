@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 public final class QuestionImportTemplate {
 
     /** 与解析器的中文别名对齐；列顺序无关，但按「填写顺序」排更顺手。 */
-    public static final String HEADER = "科目编码,题型,题干,选项,答案,解析,难度,标签,状态";
+    public static final String HEADER = "科目编码,题型,题干,选项,答案,解析,难度,标签,来源,状态";
 
     private QuestionImportTemplate() {
     }

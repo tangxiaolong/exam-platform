@@ -8,6 +8,8 @@ import com.exam.platform.modules.question.imports.ImportReport;
 import com.exam.platform.modules.question.imports.QuestionImportService;
 import com.exam.platform.modules.question.imports.QuestionImportTemplate;
 import com.exam.platform.modules.question.model.QuestionDetailView;
+import com.exam.platform.modules.question.model.QuestionBatchStatusRequest;
+import com.exam.platform.modules.question.model.QuestionBatchSubjectRequest;
 import com.exam.platform.modules.question.model.QuestionSaveRequest;
 import com.exam.platform.modules.question.model.QuestionView;
 import com.exam.platform.modules.system.support.Audited;
@@ -58,8 +60,9 @@ public class QuestionController {
                                                                  @RequestParam(required = false) String type,
                                                                  @RequestParam(required = false) String keyword,
                                                                  @RequestParam(required = false) String status,
+                                                                 @RequestParam(required = false) String source,
                                                                  PageQuery pageQuery) {
-        return Result.ok(questionService.pageForAdmin(subjectId, type, keyword, status, pageQuery));
+        return Result.ok(questionService.pageForAdmin(subjectId, type, keyword, status, source, pageQuery));
     }
 
     @GetMapping("/admin/questions/{id}")
@@ -87,6 +90,22 @@ public class QuestionController {
     public Result<Void> changeStatus(@PathVariable Long id, @RequestParam String status) {
         questionService.changeStatus(id, status);
         return Result.ok();
+    }
+
+    /** 批量启停：逐条沿用单条校验路径（知识点开关等规则不会被批量绕开），一次上限 200 条。 */
+    @PutMapping("/admin/questions/batch-status")
+    @Audited(action = "QUESTION_BATCH_STATUS", target = "'qb_question_batch'",
+            detail = "'count=' + #request.ids().size() + ', status=' + #request.status()")
+    public Result<Integer> batchChangeStatus(@RequestBody QuestionBatchStatusRequest request) {
+        return Result.ok(questionService.batchChangeStatus(request.ids(), request.status()));
+    }
+
+    /** 批量移动科目：一次性把一批题挂到另一科目下；卷快照已冻结，历史卷面不受影响。 */
+    @PutMapping("/admin/questions/batch-subject")
+    @Audited(action = "QUESTION_BATCH_SUBJECT", target = "'qb_question_batch'",
+            detail = "'count=' + #request.ids().size() + ', subjectId=' + #request.subjectId()")
+    public Result<Integer> batchChangeSubject(@RequestBody QuestionBatchSubjectRequest request) {
+        return Result.ok(questionService.batchChangeSubject(request.ids(), request.subjectId()));
     }
 
     @DeleteMapping("/admin/questions/{id}")

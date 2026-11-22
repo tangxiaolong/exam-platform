@@ -30,6 +30,7 @@ final class QuestionImportParser {
         COLUMNS.put("analysis", List.of("analysis", "解析", "答案解析"));
         COLUMNS.put("difficulty", List.of("difficulty", "难度"));
         COLUMNS.put("tags", List.of("tags", "标签"));
+        COLUMNS.put("source", List.of("source", "来源"));
         COLUMNS.put("status", List.of("status", "状态"));
     }
 
@@ -85,6 +86,7 @@ final class QuestionImportParser {
         String analysis = cell(values, idx.get("analysis"));
         String difficulty = cell(values, idx.get("difficulty")).toUpperCase(Locale.ROOT);
         String tags = cell(values, idx.get("tags"));
+        String source = cell(values, idx.get("source"));
         String status = cell(values, idx.get("status")).toUpperCase(Locale.ROOT);
 
         if (subjectCode.isEmpty()) {
@@ -103,7 +105,8 @@ final class QuestionImportParser {
                 analysis.isEmpty() ? null : analysis,
                 difficulty.isEmpty() ? "NORMAL" : difficulty,
                 tags.isEmpty() ? null : tags,
-                status.isEmpty() ? "ENABLED" : status);
+                status.isEmpty() ? "ENABLED" : status,
+                source.isEmpty() ? null : source);
     }
 
     /** 选项格式：{@code A:选项一|B:选项二}，也支持中文冒号与逗号分隔。 */
@@ -195,6 +198,7 @@ final class QuestionImportParser {
 
     /** 解析后的单行数据。 */
     record ParsedRow(String subjectCode, String type, String stem, List<OptionItem> options,
-                     List<String> answer, String analysis, String difficulty, String tags, String status) {
+                     List<String> answer, String analysis, String difficulty, String tags, String status,
+                     String source) {
     }
 }

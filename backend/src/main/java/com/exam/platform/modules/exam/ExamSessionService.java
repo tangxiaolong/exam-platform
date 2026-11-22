@@ -10,6 +10,7 @@ import com.exam.platform.common.util.Entities;
 import com.exam.platform.modules.content.ContentService;
 import com.exam.platform.modules.exam.dto.RegisterRequest;
 import com.exam.platform.modules.exam.dto.RegistrationView;
+import com.exam.platform.modules.exam.dto.SessionCloneRequest;
 import com.exam.platform.modules.exam.dto.SessionSaveRequest;
 import com.exam.platform.modules.exam.entity.ExamRegistration;
 import com.exam.platform.modules.exam.entity.ExamSession;
@@ -74,6 +75,34 @@ public class ExamSessionService {
         Entities.forInsert(session);
         sessionMapper.insert(session);
         return session;
+    }
+
+    /**
+     * 复制场次：沿用源场次的项目/试卷/考试规则（时长、迟到、名额、须知），
+     * 只替换名称与时间窗，生成新的草稿——发布仍是独立动作。
+     */
+    @Transactional
+    public ExamSession clone(Long id, SessionCloneRequest request) {
+        ExamSession source = getSession(id);
+        String name = request.name() == null || request.name().isBlank()
+                ? source.getName() + "-副本"
+                : request.name().trim();
+        SessionSaveRequest save = new SessionSaveRequest(
+                source.getProjectId(),
+                source.getPaperId(),
+                name,
+                request.registerStartAt(),
+                request.registerEndAt(),
+                request.startAt(),
+                request.endAt(),
+                source.getDurationMinutes(),
+                source.getAllowEnterBeforeMinutes(),
+                source.getLateLimitMinutes(),
+                request.resultPublishAt() != null ? request.resultPublishAt() : source.getResultPublishAt(),
+                source.getQuota(),
+                source.getNoticeVersion(),
+                source.getNoticeContent());
+        return save(save);
     }
 
     @Transactional

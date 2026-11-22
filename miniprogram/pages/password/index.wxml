@@ -1,0 +1,24 @@
+<view class="page">
+  <view class="tip-card">
+    你的账号目前只能用微信登录。设置账号名和密码后，也可以用它们登录同一份数据。
+  </view>
+
+  <view class="card form-card">
+    <view class="field">
+      <view class="field-label">登录账号名</view>
+      <input class="field-input" value="{{username}}" data-field="username" bindinput="onInput"
+             placeholder="4-32 位字母、数字或下划线" placeholder-class="ph" />
+    </view>
+    <view class="field">
+      <view class="field-label">登录密码</view>
+      <input class="field-input" value="{{password}}" data-field="password" bindinput="onInput" password
+             placeholder="至少 8 位" placeholder-class="ph" />
+    </view>
+  </view>
+
+  <button class="submit-btn" bindtap="submit" loading="{{submitting}}" disabled="{{submitting}}">
+    设置并启用密码登录
+  </button>
+
+  <view class="foot-tip">账号名设置后不可在此处修改；密码以后可在「修改密码」里更换。</view>
+</view>

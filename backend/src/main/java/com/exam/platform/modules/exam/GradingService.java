@@ -164,18 +164,40 @@ public class GradingService {
         return items.stream().mapToInt(item -> item.gotScore() == null ? 0 : item.gotScore()).sum();
     }
 
+    /** 重新计算答对题数：成绩更正可能把客观题从错改对，不重算会让「答对 x/y」永远停在首次判分。 */
+    public int recalcCorrectCount(List<ResultItem> items) {
+        return (int) items.stream().filter(ResultItem::correct).count();
+    }
+
     @Transactional
     public ExamResult updateDetail(ExamResult result, List<ResultItem> items, int revision) {
         ExamResult update = new ExamResult();
         update.setId(result.getId());
         update.setDetailJson(Json.write(items));
-        update.setTotalScore(BigDecimal.valueOf(recalcTotal(items)));
+        int total = recalcTotal(items);
+        int correctCount = recalcCorrectCount(items);
+        update.setTotalScore(BigDecimal.valueOf(total));
+        update.setCorrectCount(correctCount);
         update.setRevision(revision);
         resultMapper.updateById(update);
+        // 答卷上的总分是阅卷队列与考试监控展示「当前得分」的来源，不跟着更新会一直停在首次判分值
+        syncAttemptScore(result.getAttemptId(), total);
         result.setDetailJson(update.getDetailJson());
         result.setTotalScore(update.getTotalScore());
+        result.setCorrectCount(correctCount);
         result.setRevision(revision);
         return result;
+    }
+
+    /** 把成绩总分同步到答卷行；答卷不存在时静默跳过（历史数据可能缺行，不能因此回滚成绩）。 */
+    private void syncAttemptScore(Long attemptId, int totalScore) {
+        if (attemptId == null) {
+            return;
+        }
+        ExamAttempt attempt = new ExamAttempt();
+        attempt.setId(attemptId);
+        attempt.setTotalScore(BigDecimal.valueOf(totalScore));
+        attemptMapper.updateById(attempt);
     }
 
     @Transactional

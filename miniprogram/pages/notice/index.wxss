@@ -1,0 +1,82 @@
+.page {
+  padding: 24rpx 24rpx 120rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.state-box {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 60rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.notice-card:active {
+  opacity: 0.9;
+}
+
+.notice-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.notice-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 29rpx;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.pinned {
+  display: inline-block;
+  font-size: 19rpx;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 6rpx;
+  padding: 2rpx 10rpx;
+  margin-right: 10rpx;
+  vertical-align: middle;
+}
+
+.notice-arrow {
+  flex-shrink: 0;
+  font-size: 30rpx;
+  color: #d1d5db;
+  margin-left: 12rpx;
+  transition: transform 0.2s;
+}
+
+.notice-arrow.open {
+  transform: rotate(90deg);
+  color: #1d4ed8;
+}
+
+.notice-time {
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-top: 10rpx;
+}
+
+.notice-content {
+  margin-top: 18rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx dashed #e5e7eb;
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}

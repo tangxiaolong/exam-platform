@@ -34,12 +34,17 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LearningService {
 
+    /** 考试错题的数据源：与练习错题不同表，由错题本服务负责写入与状态维护。 */
+    private final com.exam.platform.modules.exam.WrongBookService wrongBookService;
+
+
     private static final int DEFAULT_LIMIT = 10;
 
     private final LearnPracticeMapper practiceMapper;
     private final LearnPracticeAnswerMapper answerMapper;
     private final QuestionService questionService;
     private final ContentService contentService;
+    private final com.exam.platform.modules.system.NoticeService noticeService;
 
     @Transactional
     public PracticeStartResponse create(Long userId, CreatePracticeRequest request) {
@@ -47,14 +52,16 @@ public class LearningService {
         String mode = request.mode() == null ? LearnPractice.MODE_SEQUENCE : request.mode();
         int limit = request.limit() == null ? DEFAULT_LIMIT : Math.max(1, Math.min(request.limit(), 50));
 
-        List<QbQuestion> questions = switch (mode) {
-            case LearnPractice.MODE_RANDOM -> questionService.randomQuestions(request.subjectId(), limit);
-            case LearnPractice.MODE_WRONG -> wrongQuestions(userId, request.subjectId()).stream()
-                    .map(view -> questionService.getQuestion(view.question().id()))
-                    .limit(limit)
-                    .toList();
-            default -> questionService.listSequential(request.subjectId(), limit);
-        };
+        List<QbQuestion> questions = request.knowledgePointId() != null
+                ? questionService.listSequentialByKnowledgePoint(request.subjectId(), request.knowledgePointId(), limit)
+                : switch (mode) {
+                    case LearnPractice.MODE_RANDOM -> questionService.randomQuestions(request.subjectId(), limit);
+                    case LearnPractice.MODE_WRONG -> wrongQuestions(userId, request.subjectId()).stream()
+                            .map(view -> questionService.getQuestion(view.question().id()))
+                            .limit(limit)
+                            .toList();
+                    default -> questionService.listSequential(request.subjectId(), limit);
+                };
         if (questions.isEmpty()) {
             throw new BizException("LEARN_NO_QUESTION", "该科目下暂无可用题目");
         }
@@ -117,11 +124,103 @@ public class LearningService {
         }
 
         refreshCounters(practice);
-        return new PracticeAnswerResult(correct, standard, question.getAnalysis(),
+        // 解析与标准答案按业务配置展示：考试周可关闭（practice.analysis-visible=false），判分不受影响——
+        // 关闭时只隐藏答案与解析，错题记录与统计照常落库（WBS 4.2「练习答案、解析按业务配置展示」）
+        boolean analysisVisible = Boolean.parseBoolean(
+                noticeService.getConfig("practice.analysis-visible", "true"));
+        return new PracticeAnswerResult(correct,
+                analysisVisible ? standard : List.of(),
+                analysisVisible ? question.getAnalysis() : null,
                 practice.getAnsweredCount(), practice.getCorrectCount());
     }
 
+    /**
+     * 最近一次练习会话：断点续练（PRD 4.3「恢复到最近一次有效记录」）。
+     * 按科目过滤时取该科目最近一条；返回与创建练习同构的响应，前端可原样复用渲染。
+     */
+    public PracticeStartResponse recent(Long userId, Long subjectId) {
+        LearnPractice practice = practiceMapper.selectOne(Wrappers.<LearnPractice>lambdaQuery()
+                .eq(LearnPractice::getUserId, userId)
+                .eq(subjectId != null, LearnPractice::getSubjectId, subjectId)
+                .orderByDesc(LearnPractice::getId)
+                .last("LIMIT 1"));
+        return practice == null ? null : get(practice.getId(), userId);
+    }
+
+    /** 学习记录：本人练习会话分页（按开始顺序倒序），科目名逐行补全。 */
+    public com.exam.platform.common.api.PageResult<java.util.Map<String, Object>> history(Long userId,
+            com.exam.platform.common.api.PageQuery pageQuery) {
+        var page = practiceMapper.selectPage(pageQuery.toPage(), Wrappers.<LearnPractice>lambdaQuery()
+                .eq(LearnPractice::getUserId, userId)
+                .orderByDesc(LearnPractice::getId));
+        var list = new java.util.ArrayList<java.util.Map<String, Object>>();
+        for (LearnPractice practice : page.getRecords()) {
+            var item = new java.util.LinkedHashMap<String, Object>();
+            item.put("practice_id", practice.getId());
+            item.put("subject_id", practice.getSubjectId());
+            try {
+                item.put("subject_name", contentService.getSubject(practice.getSubjectId()).getName());
+            } catch (Exception e) {
+                item.put("subject_name", "");
+            }
+            item.put("mode", practice.getMode());
+            item.put("status", practice.getStatus());
+            item.put("total_count", practice.getTotalCount());
+            item.put("answered_count", practice.getAnsweredCount());
+            item.put("correct_count", practice.getCorrectCount());
+            item.put("started_at", practice.getStartedAt());
+            list.add(item);
+        }
+        return com.exam.platform.common.api.PageResult.of(list, page.getTotal(), page.getCurrent(), page.getSize());
+    }
+
     public List<WrongQuestionView> wrongQuestions(Long userId, Long subjectId) {
+        return wrongQuestions(userId, subjectId, null);
+    }
+
+    /**
+     * 统一的错题列表：练习答错 + 考试答错。
+     *
+     * <p>{@code source} 为空表示两个来源都要。合并成一套是因为考生的心智只有
+     * 「我错过的题」；分成两个入口的结果是两边都翻不到。</p>
+     */
+    public List<WrongQuestionView> wrongQuestions(Long userId, Long subjectId, String source) {
+        String normalized = source == null || source.isBlank()
+                ? "ALL" : source.toUpperCase(java.util.Locale.ROOT);
+        // 同一次请求内按 subjectId 缓存科目名：科目数量很少，逐条查会变成 N+1
+        Map<Long, String> subjectNames = new LinkedHashMap<>();
+        List<WrongQuestionView> merged = new ArrayList<>();
+        if (!WrongQuestionView.SOURCE_EXAM.equals(normalized)) {
+            merged.addAll(practiceWrong(userId, subjectId, subjectNames));
+        }
+        if (!WrongQuestionView.SOURCE_PRACTICE.equals(normalized)) {
+            for (Long questionId : wrongBookService.wrongQuestionIds(userId, subjectId)) {
+                try {
+                    QbQuestion question = questionService.getQuestion(questionId);
+                    merged.add(new WrongQuestionView(QuestionService.toDetail(question), List.of(), null,
+                            WrongQuestionView.SOURCE_EXAM,
+                            subjectNameOf(question.getSubjectId(), subjectNames)));
+                } catch (RuntimeException e) {
+                    // 题目被下架/删除时跳过：错题本不该因为一道题消失就整页报错
+                }
+            }
+        }
+        return merged;
+    }
+
+    /** 科目名允许为空：科目被删时错题本身还应该能看，不该因为缺个名字就整条丢掉。 */
+    private String subjectNameOf(Long subjectId, Map<Long, String> cache) {
+        if (subjectId == null) {
+            return null;
+        }
+        return cache.computeIfAbsent(subjectId, id -> {
+            com.exam.platform.modules.content.entity.ExamSubject subject =
+                    contentService.getSubject(id);
+            return subject == null ? null : subject.getName();
+        });
+    }
+
+    private List<WrongQuestionView> practiceWrong(Long userId, Long subjectId, Map<Long, String> subjectNames) {
         List<LearnPracticeAnswer> wrong = answerMapper.selectList(Wrappers.<LearnPracticeAnswer>lambdaQuery()
                 .eq(LearnPracticeAnswer::getUserId, userId)
                 .eq(LearnPracticeAnswer::getCorrect, 0)
@@ -135,7 +234,9 @@ public class LearningService {
         for (LearnPracticeAnswer answer : latest.values()) {
             QbQuestion question = questionService.getQuestion(answer.getQuestionId());
             views.add(new WrongQuestionView(QuestionService.toDetail(question),
-                    Json.readList(answer.getAnswerJson(), String.class), answer.getUpdatedAt()));
+                    Json.readList(answer.getAnswerJson(), String.class), answer.getUpdatedAt(),
+                    WrongQuestionView.SOURCE_PRACTICE,
+                    subjectNameOf(question.getSubjectId(), subjectNames)));
         }
         return views;
     }

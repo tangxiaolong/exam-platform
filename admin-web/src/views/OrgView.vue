@@ -108,7 +108,7 @@ function isExpired(row: OrgQuota) {
 }
 
 function formatDate(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 16) : '-'
+  return value ? value.replace('T', ' ').slice(0, 19) : '-'
 }
 
 async function addMember() {
@@ -385,7 +385,7 @@ onMounted(load)
         </el-table-column>
         <el-table-column prop="balance" label="作废余额" width="110" />
         <el-table-column label="过期时间" width="170">
-          <template #default="{ row }">{{ (row.expireAt || '').replace('T', ' ').slice(0, 16) }}</template>
+          <template #default="{ row }">{{ (row.expireAt || '').replace('T', ' ').slice(0, 19) }}</template>
         </el-table-column>
       </el-table>
       <template #footer>

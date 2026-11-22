@@ -1,38 +1,153 @@
+.page {
+  padding: 24rpx 24rpx 120rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.state-box {
+  margin-top: 24rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 60rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+/* ---------- 顶部状态条 ---------- */
+.stats-bar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.mode-pill {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 999rpx;
+  padding: 6rpx 18rpx;
+}
+
+.stats-meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-left: 16rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mock-remain {
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  font-size: 22rpx;
+  color: #d97706;
+  font-weight: 500;
+}
+
+/* ---------- 题目卡 ---------- */
+.card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-top: 20rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
 .q-type {
+  font-size: 22rpx;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 8rpx;
+  padding: 6rpx 18rpx;
+}
+
+.fav {
   font-size: 24rpx;
-  color: #2563eb;
-  margin-bottom: 12rpx;
+  color: #8a94a6;
+}
+
+.fav.fav-on {
+  color: #f59e0b;
 }
 
 .stem {
   font-size: 30rpx;
-  line-height: 1.7;
+  line-height: 1.75;
+  color: #111827;
   margin-bottom: 26rpx;
 }
 
-.option-text {
-  flex: 1;
-  font-size: 28rpx;
-  line-height: 1.6;
+/* ---------- 结果卡 ---------- */
+.fb-card {
+  border-left: 6rpx solid transparent;
 }
 
-.ok {
-  border-left: 8rpx solid #10b981;
+.fb-ok {
+  border-left-color: #10b981;
 }
 
-.bad {
-  border-left: 8rpx solid #ef4444;
+.fb-bad {
+  border-left-color: #ef4444;
 }
 
 .fb-title {
-  font-size: 30rpx;
+  font-size: 29rpx;
   font-weight: 600;
-  margin-bottom: 10rpx;
+}
+
+.ok-text {
+  color: #059669;
+}
+
+.bad-text {
+  color: #dc2626;
+}
+
+.fb-line {
+  font-size: 24rpx;
+  color: #4b5563;
+  margin-top: 12rpx;
 }
 
 .analysis {
-  margin-top: 14rpx;
-  font-size: 26rpx;
+  margin-top: 16rpx;
+  padding: 18rpx;
+  background: #f8fafc;
+  border-radius: 12rpx;
+  font-size: 24rpx;
   color: #475569;
   line-height: 1.7;
+}
+
+/* ---------- 主按钮 ---------- */
+.main-btn {
+  margin-top: 24rpx;
+  text-align: center;
+  padding: 24rpx 0;
+  border-radius: 999rpx;
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 600;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 6rpx 16rpx rgba(37, 99, 235, 0.3);
+}
+
+.main-btn:active {
+  opacity: 0.85;
 }

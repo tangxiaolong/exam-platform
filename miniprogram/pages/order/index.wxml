@@ -1,0 +1,47 @@
+<view class="page">
+  <view class="tabs">
+    <view class="tab {{tab === 'orders' ? 'active' : ''}}" data-tab="orders" bindtap="switchTab">我的订单</view>
+    <view class="tab {{tab === 'refunds' ? 'active' : ''}}" data-tab="refunds" bindtap="switchTab">退款记录</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+
+  <block wx:elif="{{tab === 'orders'}}">
+    <view wx:if="{{orders.length === 0}}" class="state-box">暂无订单，去商城看看吧</view>
+    <view wx:for="{{orders}}" wx:key="id" class="card order-card">
+      <view class="order-head">
+        <view class="order-no">订单号 {{item.orderNo}}</view>
+        <view class="badge {{item.status === 'PENDING_PAYMENT' ? 'badge-warn' : 'badge-ok'}}">{{item.statusText}}</view>
+      </view>
+      <view class="product-name">{{item.productName}}</view>
+      <view class="order-foot">
+        <view class="amount-box">
+          <text class="amount">¥{{item.payText}}</text>
+          <text wx:if="{{item.discountText}}" class="discount">已优惠 ¥{{item.discountText}}</text>
+        </view>
+        <view class="order-time">{{item.createdText}}</view>
+      </view>
+      <view class="order-actions" wx:if="{{item.status === 'PENDING_PAYMENT' || item.status === 'PAID'}}">
+        <button wx:if="{{item.status === 'PENDING_PAYMENT'}}" class="act-btn primary" data-id="{{item.id}}" bindtap="pay" loading="{{paying}}">去支付</button>
+        <button wx:if="{{item.status === 'PAID'}}" class="act-btn ghost" data-id="{{item.id}}" bindtap="refund" loading="{{refunding}}">申请退款</button>
+      </view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view wx:if="{{refunds.length === 0}}" class="state-box">暂无退款记录</view>
+    <view wx:for="{{refunds}}" wx:key="id" class="card order-card">
+      <view class="order-head">
+        <view class="order-no">退款单 {{item.refundNo}}</view>
+        <view class="badge badge-warn">{{item.statusText}}</view>
+      </view>
+      <view class="refund-meta">订单 {{item.orderNo}}</view>
+      <view wx:if="{{item.reason}}" class="refund-meta">原因：{{item.reason}}</view>
+      <view class="order-foot">
+        <text class="amount">¥{{item.amountText}}</text>
+        <view class="order-time">申请于 {{item.appliedText}}{{item.auditText ? ' · 审核于 ' + item.auditText : ''}}</view>
+      </view>
+      <view wx:if="{{item.auditRemark}}" class="refund-meta">审核意见：{{item.auditRemark}}</view>
+    </view>
+  </block>
+</view>

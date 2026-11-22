@@ -30,6 +30,7 @@ Page({
             ...s,
             startText: formatDate(s.startAt),
             endText: formatDate(s.endAt),
+            registerEndAtText: s.registerEndAt ? formatDate(s.registerEndAt) : '不限',
             registration: regs[i],
             attempt: attemptMap[s.id] || null
           }))

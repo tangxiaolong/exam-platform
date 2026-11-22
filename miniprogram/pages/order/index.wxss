@@ -1,0 +1,168 @@
+.page {
+  padding: 24rpx 24rpx 120rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+/* ---------- 分段切换 ---------- */
+.tabs {
+  display: flex;
+  background: #ffffff;
+  border-radius: 999rpx;
+  padding: 8rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  font-size: 27rpx;
+  color: #6b7280;
+  padding: 16rpx 0;
+  border-radius: 999rpx;
+}
+
+.tab.active {
+  color: #ffffff;
+  font-weight: 600;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 4rpx 12rpx rgba(37, 99, 235, 0.3);
+}
+
+.state-box {
+  margin-top: 24rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 60rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+/* ---------- 订单卡 ---------- */
+.card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-top: 20rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+.order-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.order-no {
+  font-size: 22rpx;
+  color: #9ca3af;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 16rpx;
+}
+
+.badge {
+  flex-shrink: 0;
+  font-size: 21rpx;
+  border-radius: 999rpx;
+  padding: 6rpx 18rpx;
+}
+
+.badge-warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.badge-ok {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.product-name {
+  font-size: 29rpx;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 16rpx;
+  line-height: 1.5;
+}
+
+.refund-meta {
+  font-size: 23rpx;
+  color: #6b7280;
+  margin-top: 10rpx;
+}
+
+.order-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18rpx;
+}
+
+.amount-box {
+  display: flex;
+  align-items: baseline;
+}
+
+.amount {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.discount {
+  font-size: 21rpx;
+  color: #059669;
+  background: #ecfdf5;
+  border-radius: 6rpx;
+  padding: 2rpx 10rpx;
+  margin-left: 12rpx;
+}
+
+.order-time {
+  font-size: 21rpx;
+  color: #9ca3af;
+  text-align: right;
+  flex-shrink: 1;
+  margin-left: 12rpx;
+}
+
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #f1f5f9;
+}
+
+.act-btn {
+  margin: 0;
+  font-size: 25rpx;
+  border-radius: 999rpx;
+  padding: 0 40rpx;
+  line-height: 64rpx;
+}
+
+.act-btn.primary {
+  color: #ffffff;
+  font-weight: 500;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border: none;
+  box-shadow: 0 4rpx 12rpx rgba(37, 99, 235, 0.25);
+}
+
+.act-btn.ghost {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1rpx solid #dbeafe;
+}
+
+.act-btn::after {
+  border: none;
+}

@@ -30,6 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +95,40 @@ public class PaperService {
         return paper;
     }
 
+    /**
+     * 复制试卷：沿用组卷规则与固定题目清单，生成新草稿（版本 1），只替换名称。
+     * 与场次复制同一条原则——“复制”沿用设置，微调在新卷上做。
+     */
     @Transactional
+    public ExamPaper clone(Long id, String name) {
+        ExamPaper source = getPaper(id);
+        ExamPaper paper = new ExamPaper();
+        paper.setProjectId(source.getProjectId());
+        paper.setSubjectId(source.getSubjectId());
+        paper.setName(name == null || name.isBlank() ? source.getName() + "-副本" : name.trim());
+        paper.setMode(source.getMode());
+        paper.setQuestionJson(source.getQuestionJson());
+        paper.setTotalScore(source.getTotalScore());
+        paper.setStatus(ExamPaper.STATUS_DRAFT);
+        paper.setVersion(1);
+        Entities.forInsert(paper);
+        paperMapper.insert(paper);
+        for (ExamPaperRule rule : listRules(id)) {
+            ExamPaperRule copy = new ExamPaperRule();
+            copy.setKnowledgePointId(rule.getKnowledgePointId());
+            copy.setDifficultyMix(rule.getDifficultyMix());
+            copy.setType(rule.getType());
+            copy.setCount(rule.getCount());
+            copy.setScore(rule.getScore());
+            copy.setDifficulty(rule.getDifficulty());
+            copy.setPaperId(paper.getId());
+            copy.setSortNo(rule.getSortNo());
+            Entities.forInsert(copy);
+            ruleMapper.insert(copy);
+        }
+        return paper;
+    }
+
     public ExamPaper update(Long id, PaperSaveRequest request) {
         ExamPaper exist = getPaper(id);
         String mode = request.mode() == null ? exist.getMode() : request.mode();
@@ -148,6 +183,26 @@ public class PaperService {
      * 场次发布时调用一次，此后考试只读快照。规则组卷在此刻完成抽题。
      */
     @Transactional
+    /** 试卷版本历史：快照列表（新→旧），供管理端追溯发布过的每一版不可变试卷。 */
+    public List<Map<String, Object>> listSnapshots(Long paperId) {
+        getPaper(paperId);
+        List<ExamPaperSnapshot> snapshots = snapshotMapper.selectList(Wrappers.<ExamPaperSnapshot>lambdaQuery()
+                .eq(ExamPaperSnapshot::getPaperId, paperId)
+                .orderByDesc(ExamPaperSnapshot::getId));
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (ExamPaperSnapshot snapshot : snapshots) {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", snapshot.getId());
+            item.put("paperVersion", snapshot.getPaperVersion());
+            item.put("totalScore", snapshot.getTotalScore());
+            item.put("contentHash", snapshot.getContentHash() == null || snapshot.getContentHash().length() < 12
+                    ? snapshot.getContentHash() : snapshot.getContentHash().substring(0, 12));
+            item.put("createdAt", snapshot.getCreatedAt());
+            result.add(item);
+        }
+        return result;
+    }
+
     public ExamPaperSnapshot createSnapshot(Long paperId) {
         ExamPaper paper = getPaper(paperId);
         List<PaperQuestionItem> items = resolveItems(paper);
@@ -190,8 +245,65 @@ public class PaperService {
         Set<Long> used = new HashSet<>();
         List<PaperQuestionItem> items = new ArrayList<>();
         for (ExamPaperRule rule : rules) {
+            if (rule.getDifficultyMix() != null && !rule.getDifficultyMix().isBlank()) {
+                Map<String, Integer> mix = new LinkedHashMap<>();
+                for (String part : rule.getDifficultyMix().split(",")) {
+                    String[] kv = part.split(":");
+                    if (kv.length == 2) {
+                        mix.put(kv[0].trim(), Integer.parseInt(kv[1].trim()));
+                    }
+                }
+                int weightSum = mix.values().stream().mapToInt(Integer::intValue).sum();
+                if (weightSum <= 0) {
+                    throw BizException.badRequest("难度配比权重必须大于 0");
+                }
+                Map<String, Integer> quota = new LinkedHashMap<>();
+                int assigned = 0;
+                for (Map.Entry<String, Integer> entry : mix.entrySet()) {
+                    int n = (int) Math.round((double) rule.getCount() * entry.getValue() / weightSum);
+                    quota.put(entry.getKey(), n);
+                    assigned += n;
+                }
+                // 四舍五入后与 count 的差值补给 NORMAL（没有 NORMAL 就补给权重最大的那档）。
+                // 不按余数从高到低补：那种算法依赖运行时的题库状态，
+                // 同样的规则不同时间抽出的题数会飘，考试场景不可接受。
+                int gap = rule.getCount() - assigned;
+                if (gap != 0) {
+                    String adjust = quota.containsKey("NORMAL") ? "NORMAL"
+                            : mix.entrySet().stream().max(Map.Entry.comparingByValue())
+                                    .map(Map.Entry::getKey).orElse("NORMAL");
+                    quota.merge(adjust, gap, Integer::sum);
+                }
+                for (Map.Entry<String, Integer> entry : quota.entrySet()) {
+                    int need = entry.getValue() == null ? 0 : entry.getValue();
+                    if (need <= 0) {
+                        continue;
+                    }
+                    long mixAvailable = questionService.countAvailable(paper.getSubjectId(),
+                            rule.getType(), entry.getKey(), rule.getKnowledgePointId(), used);
+                    if (mixAvailable < need) {
+                        throw new BizException("EXAM_PAPER_RULE_INSUFFICIENT",
+                                "难度 " + entry.getKey() + " 下可用题目不足：需要 " + need
+                                        + " 道，实际 " + mixAvailable + " 道");
+                    }
+                    for (QbQuestion question : questionService.randomByRule(paper.getSubjectId(),
+                            rule.getType(), entry.getKey(), rule.getKnowledgePointId(), used, need)) {
+                        used.add(question.getId());
+                        items.add(new PaperQuestionItem(question.getId(), rule.getScore()));
+                    }
+                }
+                continue;
+            }
             long available = questionService.countAvailable(paper.getSubjectId(), rule.getType(),
-                    rule.getDifficulty(), used);
+                    rule.getDifficulty(), rule.getKnowledgePointId(), used);
+            if (available < rule.getCount() && rule.getKnowledgePointId() != null) {
+                // 知识点范围内没题，与「题库整体没题」是两回事：
+                // 前者要去补标注，后者要去加题，共用一句文案会把运营引向错误方向
+                throw new BizException("EXAM_PAPER_RULE_INSUFFICIENT",
+                        "知识点 " + rule.getKnowledgePointId() + " 下可用题目不足：需要 "
+                                + rule.getCount() + " 道，实际 " + available
+                                + " 道；请确认题目是否已标注该知识点");
+            }
             if (available < rule.getCount()) {
                 throw new BizException("EXAM_PAPER_RULE_INSUFFICIENT", String.format(
                         "规则「%s%s」需要 %d 道题，题库当前可用 %d 道",
@@ -199,7 +311,7 @@ public class PaperService {
                         rule.getCount(), available));
             }
             List<QbQuestion> picked = questionService.randomByRule(paper.getSubjectId(), rule.getType(),
-                    rule.getDifficulty(), used, rule.getCount());
+                    rule.getDifficulty(), rule.getKnowledgePointId(), used, rule.getCount());
             for (QbQuestion question : picked) {
                 used.add(question.getId());
                 items.add(new PaperQuestionItem(question.getId(), rule.getScore()));
@@ -244,7 +356,14 @@ public class PaperService {
             if (item.score() == null || item.score() <= 0) {
                 throw BizException.badRequest("规则分值必须大于 0");
             }
-            String key = item.type() + "|" + (item.difficulty() == null ? "" : item.difficulty());
+            if (item.difficulty() != null && item.difficultyMix() != null && !item.difficultyMix().isEmpty()) {
+                // 同时给出时行为未定义，直接拒绝而不是替运营猜优先级
+                throw BizException.badRequest("规则的 difficulty 与 difficultyMix 只能二选一");
+            }
+            String key = item.type() + "|" + (item.difficulty() == null ? "" : item.difficulty())
+                    + "|" + (item.knowledgePointId() == null ? "" : item.knowledgePointId())
+                    + "|" + (item.difficultyMix() == null
+                            ? "" : new java.util.TreeMap<>(item.difficultyMix()).toString());
             if (!seen.add(key)) {
                 throw BizException.badRequest("存在重复规则：" + key);
             }
@@ -253,6 +372,12 @@ public class PaperService {
             rule.setCount(item.count());
             rule.setScore(item.score());
             rule.setDifficulty(item.difficulty());
+            rule.setKnowledgePointId(item.knowledgePointId());
+            rule.setDifficultyMix(item.difficultyMix() == null || item.difficultyMix().isEmpty()
+                    ? null
+                    : new java.util.TreeMap<>(item.difficultyMix()).entrySet().stream()
+                            .map(e -> e.getKey() + ":" + e.getValue())
+                            .collect(java.util.stream.Collectors.joining(",")));
             result.add(rule);
         }
         return result;

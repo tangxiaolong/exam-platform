@@ -1,21 +1,21 @@
-<view class="container">
-  <view wx:if="{{loading}}" class="empty">加载中…</view>
-  <view wx:elif="{{courses.length === 0}}" class="empty">暂无课程</view>
+<view class="page">
+  <view class="header">
+    <view class="header-title">配套课程</view>
+    <view class="header-sub">名师精讲 · 配合题库高效备考</view>
+  </view>
 
-  <block wx:else>
-    <view wx:for="{{courses}}" wx:key="id" class="card course-card"
-          data-id="{{item.id}}" bindtap="toDetail">
-      <view class="course-head">
-        <view class="course-title">{{item.title}}</view>
-        <view class="price">{{item.priceText}}</view>
-      </view>
-      <view class="muted">{{item.summary}}</view>
-      <view class="course-foot">
-        <text class="muted">{{item.lecturer || '平台讲师'}} · {{item.lessonCount}} 课时</text>
-        <text class="tag {{item.accessType === 'FREE' ? 'tag-green' : 'tag-orange'}}">
-          {{item.accessType === 'FREE' ? '免费' : '需购买'}}
-        </text>
-      </view>
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{courses.length === 0}}" class="state-box">暂无课程</view>
+
+  <view wx:for="{{courses}}" wx:key="id" class="card course-card" data-id="{{item.id}}" bindtap="toDetail">
+    <view class="course-top">
+      <view class="course-title">{{item.title}}</view>
+      <view class="course-price">{{item.priceText}}</view>
     </view>
-  </block>
+    <view class="course-summary">{{item.summary}}</view>
+    <view class="course-foot">
+      <view class="course-meta">{{item.lecturer || '平台讲师'}} · {{item.lessonCount}} 课时</view>
+      <view class="pill {{item.accessType === 'FREE' ? 'pill-green' : 'pill-blue'}}">{{item.accessType === 'FREE' ? '免费' : '需购买'}}</view>
+    </view>
+  </view>
 </view>

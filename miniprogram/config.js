@@ -7,7 +7,7 @@
  *    真实联调时置为 false，走 wx.login 的 code 换 session（后端调用 jscode2session）。
  */
 module.exports = {
-  baseUrl: 'http://localhost:8080/api/v1',
+  baseUrl: 'http://localhost:8090/api/v1',
   mockLogin: true,
   devCode: 'dev-code-001',
   businessName: '综合考试平台'

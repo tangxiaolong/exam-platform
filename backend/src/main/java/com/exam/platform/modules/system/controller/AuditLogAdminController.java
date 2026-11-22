@@ -5,8 +5,12 @@ import com.exam.platform.common.api.PageResult;
 import com.exam.platform.common.api.Result;
 import com.exam.platform.modules.system.dto.AuditLogView;
 import com.exam.platform.modules.system.service.AuditLogQueryService;
+import com.exam.platform.modules.system.support.Audited;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,5 +45,24 @@ public class AuditLogAdminController {
     @GetMapping("/actions")
     public Result<List<String>> actions() {
         return Result.ok(auditLogQueryService.actions());
+    }
+
+    /**
+     * 导出审计日志（CSV）：筛选条件与列表页一致，上限 5000 行。
+     *
+     * <p>导出动作自身也写审计——「谁把审计日志导走了」正是审计要回答的问题之一。</p>
+     */
+    @GetMapping("/export")
+    @Audited(action = "AUDIT_LOG_EXPORT", target = "'sys_audit_log'")
+    public ResponseEntity<byte[]> export(
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        byte[] csv = auditLogQueryService.export(action, username, from, to);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"audit-logs.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(csv);
     }
 }

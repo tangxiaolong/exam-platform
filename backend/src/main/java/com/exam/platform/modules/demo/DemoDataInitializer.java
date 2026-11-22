@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +58,11 @@ public class DemoDataInitializer implements ApplicationRunner {
     private final CourseLessonMapper lessonMapper;
     private final ExamSessionService sessionService;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate jdbcTemplate;
+
+    /** 扩展演示数据（订单/成绩/机构等）开关：仅当配置显式开启时写入，测试上下文默认关闭。 */
+    @org.springframework.beans.factory.annotation.Value("${app.demo-data.extra.enabled:false}")
+    private boolean extraDemoEnabled;
 
     @Override
     @Transactional
@@ -67,6 +73,7 @@ public class DemoDataInitializer implements ApplicationRunner {
         if (projectId != null) {
             seedProducts(projectId);
             seedCourses(projectId);
+            seedExtraData();
         }
         log.info("演示数据初始化完成");
     }
@@ -121,6 +128,8 @@ public class DemoDataInitializer implements ApplicationRunner {
             project.setTargetAudience("项目管理人员、PMO、想转岗项目管理的工程师");
             project.setStatus("PUBLISHED");
             project.setSortNo(1);
+            // 演示封面：位于 admin-web/public/covers，生产环境替换为 CDN 地址即可
+            project.setCoverUrl("http://localhost:5173/covers/pmp.jpg");
             projectMapper.insert(project);
         }
 
@@ -352,5 +361,259 @@ public class DemoDataInitializer implements ApplicationRunner {
         update.setId(courseId);
         update.setLessonCount(lessons.size());
         courseMapper.updateById(update);
+    }
+
+    // =================== 各功能演示数据（幂等：已有数据则跳过） ===================
+
+    private void seedExtraData() {
+        if (!extraDemoEnabled) {
+            return;
+        }
+        Long adminId = userId("admin");
+        Long studentId = userId("student");
+        Long subjectId = jdbcTemplate.queryForObject(
+                "SELECT id FROM exam_subject WHERE tenant_id = 1 ORDER BY id LIMIT 1", Long.class);
+        List<Long> questionIds = jdbcTemplate.queryForList(
+                "SELECT id FROM qb_question WHERE tenant_id = 1 ORDER BY id", Long.class);
+        LocalDateTime now = LocalDateTime.now();
+
+        seedNotices(adminId, now);
+        seedCoupons(now);
+        seedOrders(studentId, now);
+        seedOrgs(now);
+        seedRoles(now);
+        seedMessageTemplates(studentId, now);
+        seedAuditLogs(adminId, now);
+        seedStudyTraces(studentId, subjectId, questionIds, now);
+        seedExamRecords(studentId, now);
+    }
+
+    private void seedNotices(Long adminId, LocalDateTime now) {
+        if (countOf("cms_notice") > 0) {
+            return;
+        }
+        jdbcTemplate.update("INSERT INTO cms_notice (tenant_id, title, content, type, status, pinned, "
+                        + "publish_at, publisher_id, created_at, updated_at, deleted) "
+                        + "VALUES (1,?,?,?,?,?,?,?,?,?,0)",
+                "平台正式上线公告", "综合考试平台正式开放报名，支持网页与微信小程序参加考试。",
+                "NOTICE", "PUBLISHED", 1, now.minusDays(3), adminId, now.minusDays(3), now.minusDays(3));
+        jdbcTemplate.update("INSERT INTO cms_notice (tenant_id, title, content, type, status, pinned, "
+                        + "publish_at, expire_at, publisher_id, created_at, updated_at, deleted) "
+                        + "VALUES (1,?,?,?,?,?,?,?,?,?,?,0)",
+                "双十一备考季活动", "活动期间报名立减 20 元，PMP 题库包限时 8 折。",
+                "ACTIVITY", "PUBLISHED", 0, now.minusHours(6), now.plusDays(30),
+                adminId, now.minusHours(6), now.minusHours(6));
+    }
+
+    private void seedCoupons(LocalDateTime now) {
+        if (countOf("marketing_coupon") > 0) {
+            return;
+        }
+        jdbcTemplate.update("INSERT INTO marketing_coupon (tenant_id, code, name, type, threshold_fen, value_fen, "
+                        + "discount_percent, total_quantity, per_user_limit, scope_type, valid_from, valid_to, "
+                        + "status, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+                "C-100-20", "满 100 减 20", "AMOUNT", 10000L, 2000L, 0, 1000, 1, "ALL",
+                now.minusDays(7), now.plusDays(30), "ACTIVE", now.minusDays(7), now.minusDays(7));
+        jdbcTemplate.update("INSERT INTO marketing_coupon (tenant_id, code, name, type, threshold_fen, value_fen, "
+                        + "discount_percent, total_quantity, per_user_limit, scope_type, valid_from, valid_to, "
+                        + "status, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+                "D-95", "全场 95 折券", "DISCOUNT", 0L, 0L, 95, 500, 1, "ALL",
+                now.minusDays(3), now.plusDays(15), "STOPPED", now.minusDays(3), now.minusDays(3));
+    }
+
+    private void seedOrders(Long studentId, LocalDateTime now) {
+        if (countOf("trade_order") > 0) {
+            return;
+        }
+        jdbcTemplate.update("INSERT INTO trade_order (tenant_id, order_no, user_id, product_id, product_name, "
+                        + "quantity, total_amount_fen, discount_amount_fen, pay_amount_fen, status, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,?,1,?,?,?,?,?,?,0)",
+                "T2026111500001", studentId, productId("QB-PMP"), "PMP 题库包（30 天）",
+                9900L, 2000L, 7900L, "PAID", now.minusDays(4), now.minusDays(4));
+        jdbcTemplate.update("INSERT INTO trade_order (tenant_id, order_no, user_id, product_id, product_name, "
+                        + "quantity, total_amount_fen, discount_amount_fen, pay_amount_fen, status, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,?,1,?,?,?,?,?,?,0)",
+                "T2026111700002", studentId, productId("VIP-30"), "平台会员 30 天",
+                19900L, 0L, 19900L, "COMPLETED", now.minusDays(2), now.minusDays(2));
+        jdbcTemplate.update("INSERT INTO trade_order (tenant_id, order_no, user_id, product_id, product_name, "
+                        + "quantity, total_amount_fen, discount_amount_fen, pay_amount_fen, status, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,?,1,?,?,?,?,?,?,0)",
+                "T2026111800003", studentId, productId("COURSE-PMP-PRO"), "PMP 冲刺精讲课程",
+                29900L, 0L, 29900L, "REFUNDED", now.minusDays(1), now.minusDays(1));
+
+        jdbcTemplate.update("INSERT INTO trade_payment (tenant_id, order_id, order_no, pay_no, channel, "
+                        + "amount_fen, status, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,0)",
+                orderId("T2026111500001"), "T2026111500001", "P2026111500001", "WECHAT", 7900L, "PAID",
+                now.minusDays(4), now.minusDays(4));
+        jdbcTemplate.update("INSERT INTO trade_refund (tenant_id, refund_no, order_id, order_no, user_id, "
+                        + "amount_fen, status, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,0)",
+                "R2026111800001", orderId("T2026111800003"), "T2026111800003", studentId, 29900L, "APPLIED",
+                now.minusHours(20), now.minusHours(20));
+    }
+
+    private void seedOrgs(LocalDateTime now) {
+        if (countOf("sys_org") > 0) {
+            return;
+        }
+        jdbcTemplate.update("INSERT INTO sys_org (tenant_id, code, name, type, contact_name, contact_phone, "
+                        + "status, remark, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,?,0)",
+                "ORG-LANHAI", "蓝海培训学院", "INSTITUTION", "王老师", "13800001111",
+                "ENABLED", "年度合作协议机构", now.minusDays(30), now.minusDays(30));
+        jdbcTemplate.update("INSERT INTO sys_org (tenant_id, code, name, type, contact_name, contact_phone, "
+                        + "status, remark, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,?,0)",
+                "ORG-TECH", "云帆科技有限公司", "ENTERPRISE", "李经理", "13900002222",
+                "ENABLED", "员工内训客户", now.minusDays(20), now.minusDays(20));
+    }
+
+    private void seedRoles(LocalDateTime now) {
+        Long exists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_role WHERE tenant_id = 1 AND code IN ('ORG_TEACHER','FINANCE')", Long.class);
+        if (exists != null && exists > 0) {
+            return;
+        }
+        jdbcTemplate.update("INSERT INTO sys_role (tenant_id, code, name, description, built_in, status, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,0,?,?,?,0)",
+                "ORG_TEACHER", "机构教务", "管理本机构考生、批次与报名审批", "ENABLED",
+                now.minusDays(10), now.minusDays(10));
+        jdbcTemplate.update("INSERT INTO sys_role (tenant_id, code, name, description, built_in, status, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,0,?,?,?,0)",
+                "FINANCE", "财务审核", "订单退款复核与对账确认", "ENABLED",
+                now.minusDays(10), now.minusDays(10));
+    }
+
+    private void seedMessageTemplates(Long studentId, LocalDateTime now) {
+        if (countOf("msg_template") == 0) {
+            jdbcTemplate.update("INSERT INTO msg_template (tenant_id, template_code, title, content, enabled, "
+                            + "created_at, updated_at, deleted) VALUES (1,?,?,?,1,?,?,0)",
+                    "EXAM_REGISTER", "报名成功通知",
+                    "您已成功报名「{sessionName}」，考试时间 {startAt}，请提前 20 分钟入场。",
+                    now.minusDays(5), now.minusDays(5));
+            jdbcTemplate.update("INSERT INTO msg_template (tenant_id, template_code, title, content, enabled, "
+                            + "created_at, updated_at, deleted) VALUES (1,?,?,?,1,?,?,0)",
+                    "PAYMENT_SUCCESS", "支付成功通知",
+                    "您已支付 {amount} 元，订单号 {orderNo}，权益已发放。",
+                    now.minusDays(5), now.minusDays(5));
+            jdbcTemplate.update("INSERT INTO msg_template (tenant_id, template_code, title, content, enabled, "
+                            + "created_at, updated_at, deleted) VALUES (1,?,?,?,1,?,?,0)",
+                    "RESULT_PUBLISHED", "成绩发布通知",
+                    "「{sessionName}」成绩已发布，您得分 {score} 分，快去看看吧。",
+                    now.minusDays(5), now.minusDays(5));
+        }
+        if (countOf("msg_task") == 0) {
+            jdbcTemplate.update("INSERT INTO msg_task (tenant_id, user_id, scene, template_code, payload_json, "
+                            + "status, retry_count, sent_at, created_at, updated_at, deleted) "
+                            + "VALUES (1,?,?,?,?,?,0,?,?,?,0)",
+                    studentId, "EXAM_REGISTER", "EXAM_REGISTER",
+                    "{\"sessionName\":\"PMP 模拟考试（体验场）\"}", "SENT",
+                    now.minusDays(1), now.minusDays(1), now.minusDays(1));
+            jdbcTemplate.update("INSERT INTO msg_task (tenant_id, user_id, scene, template_code, payload_json, "
+                            + "status, retry_count, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,0,?,?,0)",
+                    studentId, "RESULT_PUBLISHED", "RESULT_PUBLISHED",
+                    "{\"sessionName\":\"PMP 模拟考试（体验场）\",\"score\":40}", "PENDING",
+                    now.minusHours(19), now.minusHours(19));
+        }
+    }
+
+    private void seedAuditLogs(Long adminId, LocalDateTime now) {
+        if (countOf("sys_audit_log") > 0) {
+            return;
+        }
+        jdbcTemplate.update("INSERT INTO sys_audit_log (tenant_id, user_id, username, action, target, detail, "
+                        + "ip, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,0)",
+                adminId, "admin", "PAPER_SNAPSHOT_CREATE", "paper_snapshot:1",
+                "发布场次时生成不可变试卷快照", "127.0.0.1", now.minusDays(1), now.minusDays(1));
+        jdbcTemplate.update("INSERT INTO sys_audit_log (tenant_id, user_id, username, action, target, detail, "
+                        + "ip, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,0)",
+                adminId, "admin", "NOTICE_CREATE", "notice:2",
+                "创建活动公告「双十一备考季活动」", "127.0.0.1", now.minusHours(6), now.minusHours(6));
+        jdbcTemplate.update("INSERT INTO sys_audit_log (tenant_id, user_id, username, action, target, detail, "
+                        + "ip, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,?,0)",
+                adminId, "admin", "COUPON_CREATE", "marketing_coupon:1",
+                "创建满减券「满 100 减 20」", "127.0.0.1", now.minusDays(7), now.minusDays(7));
+    }
+
+    private void seedStudyTraces(Long studentId, Long subjectId, List<Long> questionIds, LocalDateTime now) {
+        if (countOf("exam_wrong_question") == 0 && questionIds.size() >= 2) {
+            jdbcTemplate.update("INSERT INTO exam_wrong_question (tenant_id, user_id, question_id, wrong_count, "
+                            + "last_wrong_at, mastered, created_at, updated_at, deleted) VALUES (1,?,?,?,?,0,?,?,0)",
+                    studentId, questionIds.get(1), 2, now.minusDays(2), now.minusDays(2), now.minusDays(2));
+            jdbcTemplate.update("INSERT INTO exam_wrong_question (tenant_id, user_id, question_id, wrong_count, "
+                            + "last_wrong_at, mastered, created_at, updated_at, deleted) VALUES (1,?,?,?,?,0,?,?,0)",
+                    studentId, questionIds.get(2), 1, now.minusDays(1), now.minusDays(1), now.minusDays(1));
+        }
+        if (countOf("user_favorite") == 0 && questionIds.size() >= 3) {
+            jdbcTemplate.update("INSERT INTO user_favorite (tenant_id, user_id, question_id, created_at, "
+                            + "updated_at, deleted) VALUES (1,?,?,?,?,0)",
+                    studentId, questionIds.get(0), now.minusDays(3), now.minusDays(3));
+            jdbcTemplate.update("INSERT INTO user_favorite (tenant_id, user_id, question_id, created_at, "
+                            + "updated_at, deleted) VALUES (1,?,?,?,?,0)",
+                    studentId, questionIds.get(4), now.minusDays(1), now.minusDays(1));
+        }
+        if (countOf("learn_practice") == 0) {
+            jdbcTemplate.update("INSERT INTO learn_practice (tenant_id, user_id, subject_id, mode, total_count, "
+                            + "answered_count, correct_count, status, created_at, updated_at, deleted) "
+                            + "VALUES (1,?,?,?,?,?,?,?,?,?,0)",
+                    studentId, subjectId, "SEQUENCE", 6, 6, 4, "FINISHED", now.minusDays(2), now.minusDays(2));
+            jdbcTemplate.update("INSERT INTO learn_practice (tenant_id, user_id, subject_id, mode, total_count, "
+                            + "answered_count, correct_count, status, created_at, updated_at, deleted) "
+                            + "VALUES (1,?,?,?,?,?,?,?,?,?,0)",
+                    studentId, subjectId, "RANDOM", 6, 3, 2, "IN_PROGRESS", now.minusHours(3), now.minusHours(3));
+        }
+    }
+
+    private void seedExamRecords(Long studentId, LocalDateTime now) {
+        if (countOf("exam_registration") > 0) {
+            return;
+        }
+        List<Long> sessionIds = jdbcTemplate.queryForList(
+                "SELECT id FROM exam_session WHERE tenant_id = 1 AND snapshot_id IS NOT NULL "
+                        + "ORDER BY id DESC", Long.class);
+        if (sessionIds.isEmpty()) {
+            return;
+        }
+        Long sessionId = sessionIds.get(0);
+        Long snapshotId = jdbcTemplate.queryForObject(
+                "SELECT snapshot_id FROM exam_session WHERE id = ?", Long.class, sessionId);
+        Long projectId = jdbcTemplate.queryForObject(
+                "SELECT project_id FROM exam_session WHERE id = ?", Long.class, sessionId);
+        jdbcTemplate.update("INSERT INTO exam_registration (tenant_id, session_id, project_id, user_id, status, "
+                        + "ticket_no, created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,0)",
+                sessionId, projectId, studentId, "CONFIRMED",
+                "TK" + sessionId + "0001", now.minusDays(1), now.minusDays(1));
+        Long registrationId = jdbcTemplate.queryForObject(
+                "SELECT id FROM exam_registration WHERE session_id = ? AND user_id = ?", Long.class,
+                sessionId, studentId);
+        jdbcTemplate.update("INSERT INTO exam_attempt (tenant_id, session_id, registration_id, user_id, "
+                        + "paper_snapshot_id, attempt_no, status, scoring_version, answer_version, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,?,1,?,1,2,?,?,0)",
+                sessionId, registrationId, studentId, snapshotId, "SUBMITTED",
+                now.minusHours(21), now.minusHours(20));
+        Long attemptId = jdbcTemplate.queryForObject(
+                "SELECT id FROM exam_attempt WHERE registration_id = ?", Long.class, registrationId);
+        Integer questionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM qb_question WHERE tenant_id = 1", Integer.class);
+        int total = questionCount == null ? 0 : questionCount;
+        jdbcTemplate.update("INSERT INTO exam_result (tenant_id, attempt_id, session_id, user_id, total_score, "
+                        + "full_score, correct_count, question_count, scoring_version, status, revision, "
+                        + "created_at, updated_at, deleted) VALUES (1,?,?,?,?,?,?,?,1,?,1,?,?,0)",
+                attemptId, sessionId, studentId, new java.math.BigDecimal("40.00"),
+                total * 10, 4, total, "GRADED", now.minusHours(20), now.minusHours(20));
+    }
+
+    private long countOf(String table) {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    private Long userId(String username) {
+        return jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = ?", Long.class, username);
+    }
+
+    private Long productId(String code) {
+        return jdbcTemplate.queryForObject("SELECT id FROM mall_product WHERE code = ?", Long.class, code);
+    }
+
+    private Long orderId(String orderNo) {
+        return jdbcTemplate.queryForObject("SELECT id FROM trade_order WHERE order_no = ?", Long.class, orderNo);
     }
 }

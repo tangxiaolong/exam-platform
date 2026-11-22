@@ -9,6 +9,7 @@ import com.exam.platform.modules.exam.dto.RegisterRequest;
 import com.exam.platform.modules.exam.dto.RegistrationView;
 import com.exam.platform.modules.exam.dto.SaveAnswerRequest;
 import com.exam.platform.modules.exam.dto.SaveAnswerResponse;
+import com.exam.platform.modules.exam.dto.ScoreHistoryItem;
 import com.exam.platform.modules.exam.dto.SubmitRequest;
 import com.exam.platform.modules.exam.entity.ExamSession;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class ExamStudentController {
 
     private final ExamSessionService sessionService;
     private final ExamAttemptService attemptService;
+    private final ExamReportService reportService;
 
     @GetMapping("/exam-sessions")
     public Result<List<ExamSession>> sessions(@RequestParam(required = false) Long projectId) {
@@ -85,8 +87,27 @@ public class ExamStudentController {
         return Result.ok(attemptService.result(attemptId, UserContext.userId()));
     }
 
+    /**
+     * 本人名次：仅成绩已出（GRADED/PUBLISHED）时返回 {rank, participantCount}；
+     * 未出分或非本人答卷返回空对象——不区分报错，避免通过名次接口探测他人答卷。
+     */
+    @GetMapping("/attempts/{attemptId}/rank")
+    public Result<java.util.Map<String, Object>> attemptRank(@PathVariable Long attemptId) {
+        return Result.ok(reportService.attemptRank(attemptId));
+    }
+
     @GetMapping("/attempts")
     public Result<List<AttemptView>> myAttempts() {
         return Result.ok(attemptService.myAttempts(UserContext.userId()));
+    }
+
+    /**
+     * 本人成绩历史（成绩单「成绩趋势/历史对比」用）：最近 N 次已出分成绩，
+     * 时间升序，含满分供前端折算百分比。limit 上限 20。
+     */
+    @GetMapping("/attempts/history")
+    public Result<List<ScoreHistoryItem>> scoreHistory(
+            @RequestParam(defaultValue = "10") int limit) {
+        return Result.ok(reportService.scoreHistory(UserContext.userId(), limit));
     }
 }

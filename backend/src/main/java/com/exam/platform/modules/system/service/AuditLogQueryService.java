@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -71,6 +72,48 @@ public class AuditLogQueryService {
                 .map(String::valueOf)
                 .filter(StringUtils::hasText)
                 .toList();
+    }
+
+    /**
+     * 导出 CSV：筛选条件与 {@link #page} 完全一致（含「次日 0 点」开区间处理），
+     * 上限 5000 行——全量导出会把审计表拖进一次大查询；导出的是「查问题那一段」，不是全库。
+     */
+    public byte[] export(String action, String username, LocalDate from, LocalDate to) {
+        LambdaQueryWrapper<SysAuditLog> wrapper = Wrappers.lambdaQuery();
+        if (StringUtils.hasText(action)) {
+            wrapper.eq(SysAuditLog::getAction, action.trim());
+        }
+        if (StringUtils.hasText(username)) {
+            wrapper.like(SysAuditLog::getUsername, username.trim());
+        }
+        if (from != null) {
+            wrapper.ge(SysAuditLog::getCreatedAt, from.atStartOfDay());
+        }
+        if (to != null) {
+            wrapper.lt(SysAuditLog::getCreatedAt, to.plusDays(1).atStartOfDay());
+        }
+        wrapper.orderByDesc(SysAuditLog::getId).last("LIMIT 5000");
+        List<SysAuditLog> logs = auditLogMapper.selectList(wrapper);
+
+        StringBuilder csv = new StringBuilder("\uFEFF时间,操作人,动作,目标,详情,IP\n");
+        for (SysAuditLog log : logs) {
+            csv.append(csvCell(log.getCreatedAt() == null ? "" : log.getCreatedAt().toString())).append(',')
+                    .append(csvCell(log.getUsername())).append(',')
+                    .append(csvCell(log.getAction())).append(',')
+                    .append(csvCell(log.getTarget())).append(',')
+                    .append(csvCell(log.getDetail())).append(',')
+                    .append(csvCell(log.getIp())).append('\n');
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** CSV 单元格转义：逗号/引号/换行必须包引号，否则一条记录会被拆成两行。 */
+    private String csvCell(String value) {
+        String text = value == null ? "" : value;
+        if (text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r")) {
+            return "\"" + text.replace("\"", "\"\"") + "\"";
+        }
+        return text;
     }
 
     private AuditLogView toView(SysAuditLog entity) {

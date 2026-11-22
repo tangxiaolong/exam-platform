@@ -44,6 +44,24 @@ function reset() {
   search()
 }
 
+/** 导出 CSV：筛选条件与列表页一致（后端同一套过滤逻辑，含日期开区间处理）。 */
+async function exportCsv() {
+  const params: any = {}
+  if (form.action) params.action = form.action
+  if (form.username) params.username = form.username.trim()
+  if (form.range && form.range.length === 2) {
+    params.from = form.range[0]
+    params.to = form.range[1]
+  }
+  const blob = await auditLogApi.export(params)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `audit-logs-${Date.now()}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(async () => {
   // 动作列表取不到不影响主流程：下拉为空时运营仍可按账号与时间查
   try {
@@ -73,6 +91,7 @@ onMounted(async () => {
                       start-placeholder="开始日期" end-placeholder="结束日期" style="width: 260px" />
       <el-button type="primary" @click="search">查询</el-button>
       <el-button @click="reset">重置</el-button>
+      <el-button type="success" @click="exportCsv">导出 CSV</el-button>
     </div>
 
     <el-table v-loading="loading" :data="list" border stripe>

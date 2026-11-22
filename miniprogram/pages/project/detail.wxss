@@ -1,28 +1,418 @@
-.intro {
-  margin: 12rpx 0 16rpx;
-  line-height: 1.6;
+.page {
+  padding: 20rpx 24rpx 180rpx;
+  box-sizing: border-box;
+  background: #f5f7fa;
 }
 
-.section-title {
-  font-size: 30rpx;
+/* ---------- 头部封面 ---------- */
+.hero {
+  position: relative;
+  border-radius: 28rpx;
+  overflow: hidden;
+  min-height: 260rpx;
+  background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 55%, #7c3aed 100%);
+  box-shadow: 0 12rpx 32rpx rgba(29, 78, 216, 0.25);
+}
+
+.hero-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(17, 24, 39, 0.05) 20%, rgba(17, 24, 39, 0.55) 100%);
+}
+
+.hero-body {
+  position: relative;
+  padding: 150rpx 32rpx 28rpx;
+  color: #fff;
+}
+
+.hero-name {
+  font-size: 40rpx;
   font-weight: 600;
-  margin: 8rpx 0 18rpx;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.25);
 }
 
-.actions {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 8rpx;
+.hero-target {
+  font-size: 24rpx;
+  opacity: 0.9;
+  margin-top: 10rpx;
 }
 
-.actions .btn-ghost {
-  flex: 1;
-}
-
-.btn-primary {
+/* ---------- 简介 ---------- */
+.intro-card {
   margin-top: 20rpx;
 }
 
-.course-btn {
-  margin-top: 16rpx;
+.intro-text {
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.7;
+}
+
+/* ---------- 区块 ---------- */
+.section {
+  margin-top: 36rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  font-size: 31rpx;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 18rpx;
+}
+
+.title-bar {
+  width: 8rpx;
+  height: 30rpx;
+  border-radius: 8rpx;
+  background: #1d4ed8;
+  margin-right: 14rpx;
+}
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 26rpx;
+  box-shadow: 0 4rpx 16rpx rgba(15, 23, 42, 0.05);
+}
+
+/* ---------- 考试安排 ---------- */
+.session-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.session-card:active {
+  opacity: 0.85;
+}
+
+.session-main {
+  flex: 1;
+  min-width: 0;
+  margin-right: 20rpx;
+}
+
+.session-name {
+  font-size: 29rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.session-time {
+  font-size: 23rpx;
+  color: #9ca3af;
+  margin-top: 8rpx;
+}
+
+.session-side {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.session-status {
+  font-size: 22rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+}
+
+.session-status.on {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.session-status.off {
+  color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.session-arrow {
+  font-size: 30rpx;
+  color: #d1d5db;
+  margin-left: 10rpx;
+}
+
+/* ---------- 价格与权益 ---------- */
+.price-card {
+  border: 1rpx solid #e0e7ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
+.price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.price-left {
+  flex: 1;
+  min-width: 0;
+  margin-right: 20rpx;
+}
+
+.price-main {
+  display: flex;
+  align-items: baseline;
+  color: #1d4ed8;
+}
+
+.price-symbol {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.price-num {
+  font-size: 52rpx;
+  font-weight: 700;
+  margin: 0 4rpx;
+}
+
+.price-unit {
+  font-size: 22rpx;
+  color: #6b7280;
+}
+
+.price-meta {
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-top: 6rpx;
+}
+
+.price-buy {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border-radius: 999rpx;
+  padding: 16rpx 40rpx;
+  box-shadow: 0 6rpx 16rpx rgba(37, 99, 235, 0.3);
+}
+
+.price-buy:active {
+  opacity: 0.8;
+}
+
+.price-benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 24rpx;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx dashed #e5e7eb;
+}
+
+.benefit-item {
+  font-size: 22rpx;
+  color: #059669;
+}
+
+.benefit-item::before {
+  content: '✓ ';
+}
+
+/* ---------- 科目练习 ---------- */
+.subject-card {
+  margin-bottom: 20rpx;
+}
+
+.subject-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subject-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.subject-count {
+  font-size: 22rpx;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 8rpx;
+  padding: 4rpx 14rpx;
+}
+
+.subject-intro {
+  font-size: 23rpx;
+  color: #9ca3af;
+  margin-top: 8rpx;
+}
+
+.mode-grid {
+  display: flex;
+  margin-top: 22rpx;
+}
+
+.mode-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mode-item:active {
+  opacity: 0.65;
+}
+
+.mode-icon {
+  position: relative;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 24rpx;
+}
+
+.mode-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 40rpx 40rpx;
+}
+
+.mode-blue {
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+}
+
+.mode-purple {
+  background: linear-gradient(135deg, #ede9fe, #f5f3ff);
+}
+
+.mode-red {
+  background: linear-gradient(135deg, #fee2e2, #fef2f2);
+}
+
+.mode-amber {
+  background: linear-gradient(135deg, #fef3c7, #fffbeb);
+}
+
+.mode-green {
+  background: linear-gradient(135deg, #d1fae5, #ecfdf5);
+}
+
+.icon-list::after {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWQ0ZWQ4IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGxpbmUgeDE9IjkiIHkxPSI2IiB4Mj0iMjAiIHkyPSI2Ii8+PGxpbmUgeDE9IjkiIHkxPSIxMiIgeDI9IjIwIiB5Mj0iMTIiLz48bGluZSB4MT0iOSIgeTE9IjE4IiB4Mj0iMjAiIHkyPSIxOCIvPjxjaXJjbGUgY3g9IjQuNSIgY3k9IjYiIHI9IjEiLz48Y2lyY2xlIGN4PSI0LjUiIGN5PSIxMiIgcj0iMSIvPjxjaXJjbGUgY3g9IjQuNSIgY3k9IjE4IiByPSIxIi8+PC9zdmc+");
+}
+
+.icon-shuffle::after {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjN2MzYWVkIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIgMThoMy41YzIgMCAzLTEgNC41LTNzMy01IDUtNUgyMSIvPjxwYXRoIGQ9Ik0yIDZoMy41YzIgMCAzIDEgNC41IDMiLz48cGF0aCBkPSJNMTQgMTVjMS41IDIgMi41IDMgNC41IDNIMjEiLz48cG9seWxpbmUgcG9pbnRzPSIxOCAzIDIxIDYgMTggOSIvPjxwb2x5bGluZSBwb2ludHM9IjE4IDE1IDIxIDE4IDE4IDIxIi8+PC9zdmc+");
+}
+
+.icon-bookx::after {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZGMyNjI2IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQgMTkuNUEyLjUgMi41IDAgMCAxIDYuNSAxN0gyMFY0SDYuNUEyLjUgMi41IDAgMCAwIDQgNi41eiIvPjxwYXRoIGQ9Ik00IDE5LjVBMi41IDIuNSAwIDAgMCA2LjUgMjJIMjB2LTUiLz48bGluZSB4MT0iMTAiIHkxPSI4IiB4Mj0iMTYiIHkyPSIxMyIvPjxsaW5lIHgxPSIxNiIgeTE9IjgiIHgyPSIxMCIgeTI9IjEzIi8+PC9zdmc+");
+}
+
+.icon-bulb::after {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDk3NzA2IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTkgMThoNiIvPjxwYXRoIGQ9Ik0xMCAyMWg0Ii8+PHBhdGggZD0iTTEyIDNhNiA2IDAgMCAwLTMuNSAxMC45Yy42LjQgMSAxIDEgMS43di40aDV2LS40YzAtLjcuNC0xLjMgMS0xLjdBNiA2IDAgMCAwIDEyIDN6Ii8+PC9zdmc+");
+}
+
+.icon-clock::after {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDU5NjY5IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iOSIvPjxwb2x5bGluZSBwb2ludHM9IjEyIDcgMTIgMTIgMTUuNSAxNCIvPjwvc3ZnPg==");
+}
+
+.mode-text {
+  font-size: 22rpx;
+  color: #374151;
+  margin-top: 10rpx;
+}
+
+/* ---------- 知识点面板 ---------- */
+.kp-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 22rpx;
+  padding-top: 22rpx;
+  border-top: 1rpx dashed #e5e7eb;
+}
+
+.kp-chip {
+  font-size: 23rpx;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1rpx solid #dbeafe;
+  border-radius: 999rpx;
+  padding: 10rpx 26rpx;
+}
+
+.kp-chip:active {
+  opacity: 0.7;
+}
+
+.kp-empty {
+  font-size: 22rpx;
+  color: #9ca3af;
+}
+
+/* ---------- 空态 ---------- */
+.state-box {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 60rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+/* ---------- 底部固定操作栏 ---------- */
+.bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 20rpx;
+  padding: 20rpx 24rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1rpx solid #eef2f7;
+  box-shadow: 0 -6rpx 24rpx rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
+}
+
+.bottom-btn {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx 0;
+  border-radius: 999rpx;
+  font-size: 29rpx;
+}
+
+.bottom-btn:active {
+  opacity: 0.8;
+}
+
+.bottom-btn.ghost {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1rpx solid #dbeafe;
+}
+
+.bottom-btn.primary {
+  color: #ffffff;
+  font-weight: 600;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 6rpx 16rpx rgba(37, 99, 235, 0.3);
 }

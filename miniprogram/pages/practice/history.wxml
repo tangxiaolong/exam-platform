@@ -1,0 +1,58 @@
+<view class="page">
+  <view class="header">
+    <view class="header-title">学习记录</view>
+    <view class="header-sub">练习进度一览，随时继续或回看</view>
+    <view class="stats-row">
+      <view class="stat">
+        <view class="stat-num">{{summary.practiceCount}}</view>
+        <view class="stat-label">练习次数</view>
+      </view>
+      <view class="stat">
+        <view class="stat-num">{{summary.totalAnswered}}</view>
+        <view class="stat-label">累计答题</view>
+      </view>
+      <view class="stat">
+        <view class="stat-num">{{summary.rate}}%</view>
+        <view class="stat-label">平均正确率</view>
+      </view>
+    </view>
+  </view>
+
+  <scroll-view wx:if="{{subjects.length > 1}}" scroll-x="true" show-scrollbar="{{false}}" class="subject-scroll">
+    <view class="subject-chip {{subjectFilter === '' ? 'active' : ''}}" bindtap="switchSubject" data-subject="">全部科目</view>
+    <view wx:for="{{subjects}}" wx:key="*this" class="subject-chip {{subjectFilter === item ? 'active' : ''}}"
+          bindtap="switchSubject" data-subject="{{item}}">{{item}}</view>
+  </scroll-view>
+
+  <view wx:if="{{loading}}" class="state-box">加载中…</view>
+  <view wx:elif="{{list.length === 0}}" class="state-box">还没有练习记录，去项目中心开始练习吧</view>
+
+  <block wx:for="{{groups}}" wx:key="title" wx:for-item="group">
+    <view class="group-title">{{group.title}}</view>
+    <view wx:for="{{group.items}}" wx:key="practiceId" class="card record-card"
+          data-status="{{item.status}}" bindtap="toPractice">
+      <view class="record-top">
+        <view class="record-name">{{item.subjectName}}</view>
+        <view class="mode-pill {{item.modeText === '随机练习' ? 'mode-purple' : (item.modeText === '错题重练' ? 'mode-red' : 'mode-blue')}}">{{item.modeText}}</view>
+        <view class="record-status {{item.status === 'IN_PROGRESS' ? 'ongoing' : ''}}">
+          {{item.status === 'IN_PROGRESS' ? '继续 ›' : '已完成'}}
+        </view>
+      </view>
+      <view class="rate-row">
+        <view class="rate-bar">
+          <view class="rate-bar-inner" style="width: {{item.ratePct}}%;"></view>
+        </view>
+        <view class="rate-text">{{item.answeredCount}}/{{item.totalCount}} 题 · 答对 {{item.correctCount}}</view>
+      </view>
+      <view class="record-foot">
+        <view class="record-time">{{item.startedAt}}</view>
+        <view class="rate-pct">正确率 {{item.ratePct}}%</view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{moreLoading}}" class="load-more">加载中…</view>
+  <view wx:if="{{list.length > 0 && !moreLoading}}" class="load-more dim">
+    {{ finished ? '没有更多记录了' : '上滑加载更多' }}
+  </view>
+</view>

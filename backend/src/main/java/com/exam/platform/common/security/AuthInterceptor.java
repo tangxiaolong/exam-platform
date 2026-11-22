@@ -30,6 +30,10 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final TokenService tokenService;
+    private final com.exam.platform.modules.system.RoleService roleService;
+
+    /** 账号状态必须每个请求现查：token 里只带身份，不带账号是否被停用。 */
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -42,6 +46,42 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         LoginUser user = tokenService.parse(header.substring(BEARER_PREFIX.length()).trim());
         UserContext.set(user);
+
+        // 账号被停用或删除后，已签发的 token 必须立刻失效。
+        // token 里只带身份，状态必须现查——否则「封禁一个账号」要等它的 token 过期才生效，
+        // 而停用本来就是用来应急止血的（离职、盗号、刷单），等几小时等于没做。
+        // 一次查询同时取「账号状态」和「token 是否已作废」：
+        // 两者都只依赖 sys_user 同一行，拆开就是每个请求多一次 DB 往返
+        java.util.Map<String, Object> account = jdbcTemplate.query(
+                "SELECT status, token_invalid_before FROM sys_user "
+                        + "WHERE tenant_id = ? AND id = ? AND deleted = 0",
+                rs -> {
+                    java.util.Map<String, Object> row = new java.util.HashMap<>();
+                    if (rs.next()) {
+                        row.put("status", rs.getString("status"));
+                        row.put("invalidBefore", rs.getTimestamp("token_invalid_before"));
+                    }
+                    return row;
+                },
+                UserContext.tenantId(), user.getUserId());
+        if (account.isEmpty()) {
+            throw new BizException("AUTH_UNAUTHORIZED", "账号不存在或已删除，请重新登录");
+        }
+        if (!"ENABLED".equals(account.get("status"))) {
+            throw new BizException("AUTH_UNAUTHORIZED", "账号已停用，请重新登录");
+        }
+        java.sql.Timestamp invalidBefore = (java.sql.Timestamp) account.get("invalidBefore");
+        // 用毫秒级 iatMs 比较：秒精度下「旧 token 失效」与「新 token 不被误杀」无法同时成立，
+        // 只能二选一，而两种结果用户都能感知（改密码没生效 / 改完登录不上）
+        if (invalidBefore != null && user.getTokenIssuedAt() != null
+                && user.getTokenIssuedAt() <= invalidBefore.getTime()) {
+            throw new BizException("AUTH_UNAUTHORIZED", "密码已变更，请重新登录");
+        }
+
+        // 角色与权限按请求现查，而不是写进 token：撤权必须立即生效，
+        // 否则一个被停用的管理员还能用旧 token 操作到过期为止
+        user.setRoles(roleService.rolesOf(user.getUserId()));
+        user.setPermissions(roleService.permissionsOf(user.getRoles()));
 
         String uri = request.getRequestURI();
         String contextPath = request.getContextPath();
